@@ -1,0 +1,10 @@
+{
+  "name": "life-dashboard-server",
+  "private": true,
+  "type": "module",
+  "description": "Plaid + RSS proxy for the Life Dashboard",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}

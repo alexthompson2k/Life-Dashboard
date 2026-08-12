@@ -1,1 +1,226 @@
-# Life-Dashboard
+# Life Dashboard
+
+A personal dashboard for daily use: money, tasks, calendar, weather, news, gym
+progress, habits, goals and a journal — one page you open in the morning and
+glance at through the day.
+
+It runs in two modes:
+
+- **Local mode (default).** No accounts, no keys, no setup. Data lives in your
+  browser, seeded with a realistic sample dataset so every screen is populated
+  from the first load. Good for trying it out.
+- **Cloud mode.** Add Supabase keys and the same app runs on Postgres with
+  per-user row-level security, so your data syncs across devices. Add Plaid
+  keys on the server and bank accounts and transactions sync automatically.
+
+The app never blocks on the cloud pieces: if Supabase, Plaid or the news
+service is unavailable, the affected panel explains itself and the rest of the
+dashboard carries on.
+
+---
+
+## Quick start
+
+```bash
+npm install
+npm start          # web on :5173, API server on :8787
+```
+
+Open http://localhost:5173. That is the whole setup for local mode.
+
+`npm start` runs two processes:
+
+| Command          | What it does                                          |
+| ---------------- | ----------------------------------------------------- |
+| `npm run dev`    | Vite dev server for the app                           |
+| `npm run server` | API server: Plaid endpoints + RSS news proxy          |
+
+Other scripts: `npm run build` (typecheck + production build),
+`npm run typecheck`, `npm run preview`.
+
+---
+
+## What's in it
+
+**Overview** — the daily glance. Net worth, what's due today, weight trend,
+workouts this week, today's tasks and schedule, budget warnings, weather,
+habit check-offs and headlines.
+
+**Financials** — four tabs:
+
+- _Overview_: net worth trend, income vs. spending, spending by category,
+  budget health, savings rate and cash runway.
+- _Transactions_: searchable and filterable by month and category, with manual
+  entry.
+- _Budgets_: per-category monthly limits with over-budget warnings.
+- _Accounts_: assets and liabilities, manual accounts, and Plaid bank linking.
+
+**Tasks & Calendar** — list view grouped by day (overdue first) and a month
+calendar showing tasks and events together. Priorities, lists, notes, and
+recurring tasks that roll forward when you complete them.
+
+**Fitness** — weigh-ins with a 7-day trend line (the number worth reading, not
+the daily noise), rate of change per week, workout logging with sets/reps/load,
+per-exercise strength curves with estimated 1RM, weekly training volume, and
+personal bests.
+
+**Habits** — daily check-off, current streaks, weekly targets and a 17-week
+activity heatmap per habit.
+
+**Goals** — progress measured from a starting value, so countdown goals (paying
+off a loan) read the same way as count-up goals.
+
+**Weather** — current conditions, 24-hour temperature and rain-chance charts, a
+7-day forecast, and a one-line practical read on the day. Uses
+[Open-Meteo](https://open-meteo.com) — no API key needed.
+
+**News** — headlines from RSS feeds you choose by topic, fetched through the
+API server.
+
+**Journal** — a one-minute daily entry with mood and energy, plus a trend chart.
+
+Throughout: light/dark themes, a ⌘K command palette (type `add call the
+dentist` to capture a task from anywhere), keyboard-accessible dialogs, and a
+table view on every chart.
+
+---
+
+## Cloud mode (Supabase)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open the SQL editor and run [`supabase/schema.sql`](supabase/schema.sql).
+   It creates every table, indexes them, and enables row-level security with
+   policies that scope each row to `auth.uid()`.
+3. Copy your keys into `.env.local`:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+   ```
+   VITE_SUPABASE_URL=https://xxxxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJ...
+   ```
+
+4. Restart `npm run dev`. The app now shows a sign-in screen; create an account
+   and you are running on your own Postgres database.
+
+The anon key is meant to be public — row-level security is what protects the
+data. Never put a service-role key in a `VITE_`-prefixed variable; anything
+with that prefix is compiled into the browser bundle.
+
+### Migrating your local data
+
+Before switching, go to **Settings → Export backup** to download a JSON file of
+everything in local mode. Cloud mode starts empty; import is local-mode only,
+so treat the export as an archive rather than a migration path.
+
+---
+
+## Bank sync (Plaid)
+
+1. Sign up at [dashboard.plaid.com](https://dashboard.plaid.com) and get your
+   `client_id` and sandbox secret.
+2. Configure the server:
+
+   ```bash
+   cp server/.env.example server/.env
+   ```
+
+   ```
+   PLAID_CLIENT_ID=...
+   PLAID_SECRET=...
+   PLAID_ENV=sandbox
+   ```
+
+3. Restart `npm run server`, then go to **Financials → Accounts → Link a bank**.
+   In sandbox, use any institution with the credentials `user_good` /
+   `pass_good`.
+
+Check the server is configured with `curl localhost:8787/api/health`.
+
+### Plaid endpoints
+
+| Endpoint                 | Purpose                                        |
+| ------------------------ | ---------------------------------------------- |
+| `POST /api/plaid/link-token` | Mints a Link token for the browser         |
+| `POST /api/plaid/exchange`   | Swaps the public token for an access token |
+| `GET  /api/plaid/accounts`   | Current balances for linked items          |
+| `POST /api/plaid/sync`       | Incremental transaction sync               |
+
+Two things to know before relying on this in production:
+
+- **Access tokens are stored in memory.** They are lost when the server
+  restarts, so you would re-link. `supabase/schema.sql` includes a
+  `plaid_items` table with RLS enabled and *no policies* — reachable only by
+  the service role — which is where they belong for a longer-lived setup.
+- **Sync is not yet wired into the database.** `/api/plaid/sync` returns
+  normalized accounts and transactions, but persisting them (and reconciling
+  against manual rows) is left as the next step, since it depends on how you
+  want duplicates handled.
+
+Sign conventions the server normalizes to: **amount > 0 is money in, < 0 is
+money out** (Plaid uses the opposite), and liability balances are stored as a
+positive "amount owed", which net worth subtracts.
+
+---
+
+## Architecture
+
+```
+src/
+  lib/          data layer, domain logic, API clients
+    store.ts      one interface over Supabase and localStorage
+    finance.ts    net worth, budgets, cash flow, categories
+    fitness.ts    weight trend, 1RM estimates, volume, streaks
+    weather.ts    Open-Meteo client + WMO code mapping
+  components/
+    charts.tsx    chart primitives and the colour palette
+    ui.tsx        cards, stats, modals, toasts, form fields
+  pages/        one file per section
+server/         Plaid + RSS proxy (holds all secrets)
+supabase/       schema.sql — tables, indexes, RLS policies
+```
+
+**Why an API server at all?** Two things the browser cannot do: hold a Plaid
+secret, and fetch RSS feeds (no CORS headers). Everything else — Supabase reads
+and writes, weather — goes direct from the app.
+
+**The data layer.** `useTable('tasks')` returns rows plus `insert`/`update`/
+`remove`, and works identically against either backend. Pages never branch on
+which one is live.
+
+**Charts.** Categorical colours are assigned by fixed slot, never by rank, so
+filtering a chart never repaints the remaining series. The palette is validated
+for colourblind separation in both light and dark mode. There are no dual-axis
+charts anywhere — two measures with different units get two charts. Every chart
+has a table view (the icon in its header), which is also the accessibility
+fallback for the lighter palette slots.
+
+---
+
+## Deploying
+
+The frontend is a static build (`npm run build` → `dist/`) and can go on any
+static host. The API server is a small Express app that needs a Node runtime.
+
+If the two end up on different origins, point the frontend at the server:
+
+```
+VITE_API_BASE_URL=https://your-api-host.example.com
+```
+
+Otherwise leave it blank — in development Vite proxies `/api` for you.
+
+---
+
+## Notes and limits
+
+- The net worth history is **reconstructed** by walking today's balances back
+  through your transactions. It is exact only for accounts whose activity is
+  fully captured; treat it as a trend, not an audit.
+- Weight and lift loads are stored in kilograms and converted for display, so
+  switching units in Settings never rewrites your data.
+- Estimated 1RM uses the Epley formula — a training metric, not a real max.
+- The local-mode sample data is deterministic, so charts stay stable across
+  reloads. **Settings → Reset to sample data** restores it.
