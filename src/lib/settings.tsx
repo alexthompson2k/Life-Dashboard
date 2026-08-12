@@ -12,6 +12,12 @@ export const DEFAULT_SETTINGS: Settings = {
   longitude: -122.4194,
   news_topics: ['Top stories', 'Technology', 'Business', 'Science'],
   week_starts_on: 1,
+  brief_enabled: false,
+  brief_time: '07:00',
+  timezone:
+    typeof Intl !== 'undefined'
+      ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC')
+      : 'UTC',
 }
 
 interface SettingsContextValue {

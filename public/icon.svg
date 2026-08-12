@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Life Dashboard">
+  <rect width="512" height="512" rx="112" fill="#2a78d6"/>
+  <g fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M136 328 L216 248 L280 300 L376 184"/>
+  </g>
+  <circle cx="376" cy="184" r="26" fill="#ffffff"/>
+  <rect x="120" y="366" width="272" height="22" rx="11" fill="#ffffff" opacity="0.55"/>
+</svg>

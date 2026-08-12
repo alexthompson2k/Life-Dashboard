@@ -150,6 +150,10 @@ export interface Settings {
   longitude: number
   news_topics: string[]
   week_starts_on: 0 | 1
+  /** Daily brief. The timezone is an IANA name so the server fires locally. */
+  brief_enabled: boolean
+  brief_time: string
+  timezone: string
 }
 
 /** Every table the data layer knows about, and the row type it holds. */

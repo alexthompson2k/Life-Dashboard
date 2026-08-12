@@ -7,10 +7,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.js'],
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**/*.ts'],
+      include: ['src/lib/**/*.ts', 'server/**/*.js'],
       exclude: ['src/lib/demoData.ts', 'src/lib/**/*.test.ts'],
     },
   },

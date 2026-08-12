@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthGate } from './components/AuthGate'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { PwaStatus } from './components/PwaStatus'
 import { ToastProvider } from './components/ui'
 import { SettingsProvider } from './lib/settings'
 
@@ -42,6 +43,7 @@ export default function App() {
             </Routes>
           </SettingsProvider>
         </AuthGate>
+        <PwaStatus />
       </ToastProvider>
     </ErrorBoundary>
   )

@@ -42,9 +42,10 @@ Other scripts: `npm run build` (typecheck + production build),
 
 `npm test` runs the unit suite (Vitest) over the pure logic — net worth and
 liability signs, budget thresholds, the category "Other" fold, weight trend and
-rate of change, Epley 1RM, habit streaks, local-date handling and the local
-storage backend. These are the calculations where being silently wrong is
-expensive, so they are the ones covered.
+rate of change, Epley 1RM, habit streaks, local-date handling, the local
+storage backend, daily-brief composition, and the server's auth middleware.
+These are the places where being silently wrong is expensive, so they are the
+ones covered.
 
 ---
 
@@ -90,6 +91,53 @@ API server.
 Throughout: light/dark themes, a ⌘K command palette (type `add call the
 dentist` to capture a task from anywhere), keyboard-accessible dialogs, and a
 table view on every chart.
+
+---
+
+## On your phone
+
+The dashboard is an installable PWA. Open it on your phone and use **Add to
+Home Screen** (or the install prompt on Android/desktop). Installed, it opens
+without browser chrome, keeps working offline, and can send you a morning
+brief.
+
+**Offline.** The app shell and your last-loaded data are cached, so it still
+opens with no signal. Local mode works completely offline. In cloud mode reads
+fall back to cache and a banner tells you what you are looking at; writes are
+never cached, so they fail honestly rather than appearing to save.
+
+### Daily brief
+
+One notification each morning: tasks due and overdue, your next event, the
+weather (phrased as something to do about it), any budget past 80%, habits not
+yet ticked, and a nudge if you have not weighed in for a few days. It stays
+quiet on a day with nothing to report.
+
+Because the notification must arrive while the app is closed, the server
+composes and sends it — so **the brief needs cloud mode**. To set it up:
+
+1. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to `server/.env`.
+2. Generate a VAPID key pair and add it to the same file:
+
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+
+   ```
+   VAPID_PUBLIC_KEY=...
+   VAPID_PRIVATE_KEY=...
+   VAPID_SUBJECT=mailto:you@example.com
+   ```
+
+3. Restart the server, then go to **Settings → Daily brief**, turn it on and
+   pick a time. **Send one now** checks the whole path without waiting for
+   morning.
+
+The server checks every 15 minutes and sends to whoever's chosen time has just
+come round in their own timezone.
+
+On iPhone and iPad, web push only works once the app is installed to the home
+screen — the settings panel says so rather than silently failing.
 
 ---
 
@@ -190,7 +238,11 @@ src/
     charts.tsx    chart primitives and the colour palette
     ui.tsx        cards, stats, modals, toasts, form fields
   pages/        one file per section
-server/         Plaid + RSS proxy (holds all secrets)
+server/         holds all secrets
+  index.js      routes: Plaid, news, push
+  auth.js       Supabase JWT verification for user-scoped endpoints
+  brief.js      pure daily-brief composition (unit tested)
+  push.js       subscriptions, delivery, and the 15-minute scheduler
 supabase/       schema.sql — tables, indexes, RLS policies
 ```
 

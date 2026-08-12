@@ -177,8 +177,18 @@ create table if not exists public.settings (
   latitude double precision not null default 37.7749,
   longitude double precision not null default -122.4194,
   news_topics text[] not null default array['Top stories','Technology','Business','Science'],
-  week_starts_on smallint not null default 1 check (week_starts_on in (0,1))
+  week_starts_on smallint not null default 1 check (week_starts_on in (0,1)),
+  -- Daily brief. `timezone` is an IANA name so the server can fire at the
+  -- user's local hour rather than UTC.
+  brief_enabled boolean not null default false,
+  brief_time text not null default '07:00',
+  timezone text not null default 'UTC'
 );
+
+-- Re-running this file against an existing database picks up the brief columns.
+alter table public.settings add column if not exists brief_enabled boolean not null default false;
+alter table public.settings add column if not exists brief_time text not null default '07:00';
+alter table public.settings add column if not exists timezone text not null default 'UTC';
 
 -- ---------------------------------------------------------------------------
 -- Plaid item storage.
@@ -198,6 +208,29 @@ create table if not exists public.plaid_items (
 );
 
 alter table public.plaid_items enable row level security;
+-- Intentionally no policies: service-role access only.
+
+-- ---------------------------------------------------------------------------
+-- Push subscriptions for the daily brief.
+--
+-- Written and read only by the server (service role) when sending. Same
+-- pattern as plaid_items: RLS on, no policies, so the browser client cannot
+-- enumerate or tamper with delivery endpoints.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_user_idx
+  on public.push_subscriptions (user_id);
+
+alter table public.push_subscriptions enable row level security;
 -- Intentionally no policies: service-role access only.
 
 -- ---------------------------------------------------------------------------

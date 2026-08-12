@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Life Dashboard">
+  <!-- Full bleed: maskable icons are cropped to a circle, so the artwork is
+       kept inside the middle 80% safe zone. -->
+  <rect width="512" height="512" fill="#2a78d6"/>
+  <g fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M168 320 L232 256 L284 298 L360 206"/>
+  </g>
+  <circle cx="360" cy="206" r="22" fill="#ffffff"/>
+  <rect x="156" y="350" width="200" height="20" rx="10" fill="#ffffff" opacity="0.55"/>
+</svg>

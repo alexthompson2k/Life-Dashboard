@@ -4,6 +4,7 @@ import { useSettings } from '../lib/settings'
 import { isCloudMode, supabase } from '../lib/supabase'
 import { clearLocalData, ensureSeeded, exportAllData, importAllData } from '../lib/store'
 import { Button, Callout, Card, Field, Select, useToast } from '../components/ui'
+import { BriefSettings } from '../components/BriefSettings'
 import { useTheme } from '../lib/theme'
 import type { UnitSystem } from '../lib/types'
 
@@ -117,6 +118,8 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+
+      <BriefSettings />
 
       <Card title="Location" subtitle="Used for the weather panel">
         <p className="text-sm text-ink-primary">{settings.location_name}</p>

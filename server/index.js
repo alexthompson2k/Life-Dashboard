@@ -16,6 +16,16 @@ import express from 'express'
 import cors from 'cors'
 import 'dotenv/config'
 import { XMLParser } from 'fast-xml-parser'
+import { requireUser } from './auth.js'
+import { supabaseConfigured } from './supabase.js'
+import {
+  pushConfigured,
+  removeSubscription,
+  saveSubscription,
+  sendBriefTo,
+  startBriefScheduler,
+  vapidPublicKey,
+} from './push.js'
 
 const app = express()
 app.use(cors())
@@ -344,6 +354,66 @@ app.get('/api/news', async (req, res) => {
 })
 
 /* ------------------------------------------------------------------ */
+/* Daily brief                                                         */
+/* ------------------------------------------------------------------ */
+
+/** The VAPID public key is meant to be public — the browser needs it to subscribe. */
+app.get('/api/push/config', (_req, res) => {
+  res.json({
+    enabled: pushConfigured,
+    public_key: pushConfigured ? vapidPublicKey() : null,
+  })
+})
+
+app.post('/api/push/subscribe', requireUser, async (req, res) => {
+  if (!pushConfigured) {
+    return res.status(501).json({ error: 'Push is not configured on the server.' })
+  }
+  const { subscription } = req.body ?? {}
+  if (!subscription?.endpoint || !subscription?.keys) {
+    return res.status(400).json({ error: 'A push subscription is required.' })
+  }
+  try {
+    await saveSubscription(req.userId, subscription)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('subscribe failed:', err.message)
+    res.status(502).json({ error: 'Could not save the subscription.' })
+  }
+})
+
+app.post('/api/push/unsubscribe', requireUser, async (req, res) => {
+  const { endpoint } = req.body ?? {}
+  if (!endpoint) return res.status(400).json({ error: 'An endpoint is required.' })
+  try {
+    await removeSubscription(req.userId, endpoint)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('unsubscribe failed:', err.message)
+    res.status(502).json({ error: 'Could not remove the subscription.' })
+  }
+})
+
+/** Sends the brief immediately, so the setup can be checked without waiting for morning. */
+app.post('/api/push/test', requireUser, async (req, res) => {
+  if (!pushConfigured) {
+    return res.status(501).json({ error: 'Push is not configured on the server.' })
+  }
+  try {
+    const { sent, brief } = await sendBriefTo(req.userId)
+    if (sent === 0) {
+      return res
+        .status(409)
+        .json({ error: 'No push subscriptions registered for this account yet.' })
+    }
+    res.json({ sent, preview: brief })
+  } catch (err) {
+    console.error('test brief failed:', err.message)
+    res.status(502).json({ error: 'Could not send the brief.' })
+  }
+})
+
+/* ------------------------------------------------------------------ */
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -351,6 +421,8 @@ app.get('/api/health', (_req, res) => {
     plaid_configured: plaidConfigured,
     plaid_env: plaidConfigured ? PLAID_ENV : null,
     linked_items: plaidItems.size,
+    supabase_configured: supabaseConfigured,
+    push_configured: pushConfigured,
     news_topics: Object.keys(FEEDS),
   })
 })
@@ -362,4 +434,10 @@ app.listen(PORT, () => {
       ? `Plaid: configured (${PLAID_ENV})`
       : 'Plaid: not configured — bank linking is disabled until you add keys to server/.env',
   )
+  console.log(
+    supabaseConfigured
+      ? 'Supabase: service role configured'
+      : 'Supabase: not configured — the daily brief needs it',
+  )
+  startBriefScheduler()
 })

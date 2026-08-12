@@ -560,6 +560,9 @@ const settings: Tables['settings'][] = [
     longitude: -122.4194,
     news_topics: ['Top stories', 'Technology', 'Business', 'Science'],
     week_starts_on: 1,
+    brief_enabled: false,
+    brief_time: '07:00',
+    timezone: 'America/Los_Angeles',
   },
 ]
 
