@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Download, LogOut, RotateCcw, Upload } from 'lucide-react'
 import { useSettings } from '../lib/settings'
 import { isCloudMode, supabase } from '../lib/supabase'
-import { clearLocalData, ensureSeeded, exportLocalData, importLocalData } from '../lib/store'
+import { clearLocalData, ensureSeeded, exportAllData, importAllData } from '../lib/store'
 import { Button, Callout, Card, Field, Select, useToast } from '../components/ui'
 import { useTheme } from '../lib/theme'
 import type { UnitSystem } from '../lib/types'
@@ -14,23 +14,35 @@ export default function Settings() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState(settings.display_name)
 
-  const download = () => {
-    const blob = new Blob([exportLocalData()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `life-dashboard-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    toast.push('Backup downloaded')
+  const [busy, setBusy] = useState(false)
+
+  const download = async () => {
+    setBusy(true)
+    try {
+      const blob = new Blob([await exportAllData()], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `life-dashboard-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.push('Backup downloaded')
+    } catch (err) {
+      toast.push(`Export failed: ${(err as Error).message}`, 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const upload = async (file: File) => {
+    setBusy(true)
     try {
-      importLocalData(await file.text())
-      toast.push('Data imported')
+      const { imported } = await importAllData(await file.text())
+      toast.push(`Imported ${imported} rows`)
     } catch (err) {
       toast.push(`Import failed: ${(err as Error).message}`, 'error')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -116,9 +128,16 @@ export default function Settings() {
         </p>
       </Card>
 
-      {!isCloudMode && (
-        <Card title="Your data" subtitle="Everything lives in this browser until you add cloud keys">
-          <div className="space-y-3">
+      <Card
+        title="Your data"
+        subtitle={
+          isCloudMode
+            ? 'Synced to Supabase — back it up anyway'
+            : 'Everything lives in this browser until you add cloud keys'
+        }
+      >
+        <div className="space-y-3">
+          {!isCloudMode && (
             <Callout intent="info">
               No Supabase keys are set, so the dashboard is running on a local sample dataset. Add{' '}
               <code className="font-mono">VITE_SUPABASE_URL</code> and{' '}
@@ -126,25 +145,27 @@ export default function Settings() {
               <code className="font-mono">.env.local</code> to switch to your own synced data —
               see the README.
             </Callout>
+          )}
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={download}>
-                <Download size={15} /> Export backup
-              </Button>
-              <Button onClick={() => fileRef.current?.click()}>
-                <Upload size={15} /> Import backup
-              </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void upload(file)
-                  e.target.value = ''
-                }}
-              />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void download()} disabled={busy}>
+              <Download size={15} /> Export backup
+            </Button>
+            <Button onClick={() => fileRef.current?.click()} disabled={busy}>
+              <Upload size={15} /> Import backup
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void upload(file)
+                e.target.value = ''
+              }}
+            />
+            {!isCloudMode && (
               <Button
                 variant="danger"
                 onClick={() => {
@@ -156,10 +177,17 @@ export default function Settings() {
               >
                 <RotateCcw size={15} /> Reset to sample data
               </Button>
-            </div>
+            )}
           </div>
-        </Card>
-      )}
+
+          {isCloudMode && (
+            <p className="text-xs text-ink-muted">
+              Import adds rows to your account rather than replacing them, so importing a
+              backup twice will duplicate it.
+            </p>
+          )}
+        </div>
+      </Card>
 
       {isCloudMode && (
         <Card title="Account">

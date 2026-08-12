@@ -36,7 +36,15 @@ Open http://localhost:5173. That is the whole setup for local mode.
 | `npm run server` | API server: Plaid endpoints + RSS news proxy          |
 
 Other scripts: `npm run build` (typecheck + production build),
-`npm run typecheck`, `npm run preview`.
+`npm run typecheck`, `npm test`, `npm run preview`.
+
+### Tests
+
+`npm test` runs the unit suite (Vitest) over the pure logic — net worth and
+liability signs, budget thresholds, the category "Other" fold, weight trend and
+rate of change, Epley 1RM, habit streaks, local-date handling and the local
+storage backend. These are the calculations where being silently wrong is
+expensive, so they are the ones covered.
 
 ---
 
@@ -111,9 +119,13 @@ with that prefix is compiled into the browser bundle.
 
 ### Migrating your local data
 
-Before switching, go to **Settings → Export backup** to download a JSON file of
-everything in local mode. Cloud mode starts empty; import is local-mode only,
-so treat the export as an archive rather than a migration path.
+**Settings → Export backup** writes a JSON file of every table, and works in
+both modes. To move local data into a fresh cloud account, export before you
+add the keys, then import once signed in.
+
+Import *adds* rows rather than replacing them, so importing the same file twice
+duplicates it. Row ids are preserved, which keeps relationships (workout → sets,
+habit → logs) intact.
 
 ---
 

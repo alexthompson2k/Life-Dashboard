@@ -23,6 +23,7 @@ import { useSettings } from '../lib/settings'
 import { isCloudMode } from '../lib/supabase'
 import { timeOfDayGreeting } from '../lib/format'
 import { CommandPalette } from './CommandPalette'
+import { ErrorBoundary } from './ErrorBoundary'
 
 export const NAV = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -177,7 +178,10 @@ export function Layout() {
         </header>
 
         <main className="flex-1 px-4 py-5 sm:px-6 sm:py-6">
-          <Outlet />
+          {/* Keyed on the route so navigating away from a broken page recovers. */}
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
 

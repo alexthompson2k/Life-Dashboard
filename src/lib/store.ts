@@ -78,25 +78,94 @@ export function clearLocalData() {
   localStorage.removeItem(SEEDED_KEY)
 }
 
-export function exportLocalData() {
-  const out: Record<string, unknown> = {}
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(LOCAL_PREFIX)) {
-      out[key.slice(LOCAL_PREFIX.length)] = JSON.parse(localStorage.getItem(key) || '[]')
-    }
-  }
-  return JSON.stringify({ exported_at: new Date().toISOString(), tables: out }, null, 2)
+/* ------------------------------------------------------------------ */
+/* Backup                                                              */
+/* ------------------------------------------------------------------ */
+
+/** Every table the backup covers, in an order that respects foreign keys. */
+const ALL_TABLES: TableName[] = [
+  'settings',
+  'accounts',
+  'transactions',
+  'budgets',
+  'tasks',
+  'events',
+  'weights',
+  'workouts',
+  'workout_sets',
+  'habits',
+  'habit_logs',
+  'journal',
+  'goals',
+]
+
+export interface BackupFile {
+  exported_at: string
+  version: number
+  tables: Partial<Record<TableName, unknown[]>>
 }
 
-export function importLocalData(json: string) {
-  const parsed = JSON.parse(json) as { tables?: Record<string, unknown[]> }
-  if (!parsed.tables) throw new Error('File is missing a "tables" object.')
-  for (const [table, rows] of Object.entries(parsed.tables)) {
-    if (!Array.isArray(rows)) continue
-    localWrite(table as TableName, rows as never)
-    notify(table as TableName)
+/**
+ * Reads through the same abstraction the app uses, so a backup works in cloud
+ * mode as well as locally. Without this, switching to Supabase would mean
+ * losing the only escape hatch for your data.
+ */
+export async function exportAllData(): Promise<string> {
+  const tables: Partial<Record<TableName, unknown[]>> = {}
+  for (const table of ALL_TABLES) {
+    tables[table] = await listTable(table)
   }
-  localStorage.setItem(SEEDED_KEY, new Date().toISOString())
+  const file: BackupFile = {
+    exported_at: new Date().toISOString(),
+    version: 1,
+    tables,
+  }
+  return JSON.stringify(file, null, 2)
+}
+
+/**
+ * Restores a backup. Rows are written through `insertRow`, which means cloud
+ * mode stamps them with the signed-in user rather than trusting whatever
+ * `user_id` the file carried.
+ *
+ * Ids are preserved so relationships (workout → sets, habit → logs) survive.
+ * Importing into an account that already holds those ids will conflict, so the
+ * caller should clear first — Settings does exactly that.
+ */
+export async function importAllData(json: string): Promise<{ imported: number }> {
+  let parsed: BackupFile
+  try {
+    parsed = JSON.parse(json) as BackupFile
+  } catch {
+    throw new Error('That file is not valid JSON.')
+  }
+
+  if (!parsed || typeof parsed !== 'object' || !parsed.tables) {
+    throw new Error('File is missing a "tables" object — is it a dashboard backup?')
+  }
+
+  let imported = 0
+  for (const table of ALL_TABLES) {
+    const rows = parsed.tables[table]
+    if (!Array.isArray(rows)) continue
+
+    if (!isCloudMode || !supabase) {
+      // Local mode can write the whole table in one shot.
+      localWrite(table, rows as never)
+      notify(table)
+      imported += rows.length
+      continue
+    }
+
+    for (const row of rows) {
+      const { user_id: _ignored, ...rest } = row as Record<string, unknown>
+      await insertRow(table, rest as never)
+      imported++
+    }
+  }
+
+  if (!isCloudMode) localStorage.setItem(SEEDED_KEY, new Date().toISOString())
+  return { imported }
 }
 
 /* ------------------------------------------------------------------ */
