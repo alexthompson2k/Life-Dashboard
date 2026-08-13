@@ -14,6 +14,7 @@ import {
   useToast,
 } from '../components/ui'
 import { currency, fromISODate, number as fmtNumber, toISODate } from '../lib/format'
+import { useUndoableDelete } from '../lib/undo'
 import type { Goal } from '../lib/types'
 
 /**
@@ -37,6 +38,7 @@ export default function Goals() {
   const goals = useTable('goals')
   const { settings } = useSettings()
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Goal | null>(null)
 
@@ -126,10 +128,7 @@ export default function Goals() {
                           Update
                         </button>
                         <button
-                          onClick={() => {
-                            void goals.remove(goal.id)
-                            toast.push('Goal removed')
-                          }}
+                          onClick={() => void removeRow('goals', goal, goals.remove, 'Goal')}
                           className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                           aria-label={`Delete ${goal.title}`}
                         >

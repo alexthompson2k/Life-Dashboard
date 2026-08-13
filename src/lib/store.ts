@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isCloudMode, supabase } from './supabase'
 import { buildDemoData } from './demoData'
 import type { TableName, Tables } from './types'
@@ -23,6 +23,17 @@ const SEEDED_KEY = 'ld.seeded.v1'
 
 const listeners = new Map<TableName, Set<() => void>>()
 
+/**
+ * Per-table result cache plus in-flight de-duplication.
+ *
+ * The Overview alone reads nine tables, and several of them are also read by
+ * the page beside it. Without this, every mount and every write fired one
+ * request per subscriber — so ticking a habit produced a `habit_logs` fetch
+ * for each component watching it. Now N subscribers share one request.
+ */
+const cache = new Map<TableName, unknown[]>()
+const inflight = new Map<TableName, Promise<unknown[]>>()
+
 function subscribe(table: TableName, fn: () => void) {
   let set = listeners.get(table)
   if (!set) {
@@ -35,8 +46,20 @@ function subscribe(table: TableName, fn: () => void) {
   }
 }
 
+/** Invalidates the cache and asks every subscriber to reload. */
 function notify(table: TableName) {
+  cache.delete(table)
+  inflight.delete(table)
   listeners.get(table)?.forEach((fn) => fn())
+}
+
+/** Drops all cached reads — used when the signed-in user changes. */
+export function invalidateAll() {
+  cache.clear()
+  inflight.clear()
+  for (const table of listeners.keys()) {
+    listeners.get(table)?.forEach((fn) => fn())
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -76,6 +99,9 @@ export function clearLocalData() {
     if (key.startsWith(LOCAL_PREFIX)) localStorage.removeItem(key)
   }
   localStorage.removeItem(SEEDED_KEY)
+  // Wiping storage without dropping the read cache would leave the UI showing
+  // rows that no longer exist.
+  invalidateAll()
 }
 
 /* ------------------------------------------------------------------ */
@@ -182,12 +208,51 @@ async function currentUserId(): Promise<string | null> {
   return data.user?.id ?? null
 }
 
-export async function listTable<K extends TableName>(table: K): Promise<Tables[K][]> {
+async function fetchTable<K extends TableName>(table: K): Promise<Tables[K][]> {
   if (!isCloudMode || !supabase) return localRead(table)
 
   const { data, error } = await supabase.from(table).select('*')
   if (error) throw new Error(`Could not load ${table}: ${error.message}`)
   return (data ?? []) as Tables[K][]
+}
+
+/**
+ * Reads a table, sharing both the cached result and any in-flight request
+ * between callers. Pass `fresh` to force a round trip.
+ */
+export async function listTable<K extends TableName>(
+  table: K,
+  { fresh = false } = {},
+): Promise<Tables[K][]> {
+  if (fresh) {
+    cache.delete(table)
+    inflight.delete(table)
+  } else {
+    const cached = cache.get(table)
+    if (cached) return cached as Tables[K][]
+  }
+
+  const existing = inflight.get(table)
+  if (existing) return existing as Promise<Tables[K][]>
+
+  const request = fetchTable(table)
+    .then((rows) => {
+      cache.set(table, rows)
+      inflight.delete(table)
+      return rows as unknown[]
+    })
+    .catch((err) => {
+      inflight.delete(table)
+      throw err
+    })
+
+  inflight.set(table, request)
+  return request as Promise<Tables[K][]>
+}
+
+/** Synchronous peek at the cache, so a remount does not flash a spinner. */
+function peek<K extends TableName>(table: K): Tables[K][] | null {
+  return (cache.get(table) as Tables[K][] | undefined) ?? null
 }
 
 export async function insertRow<K extends TableName>(
@@ -267,37 +332,50 @@ export interface TableHandle<K extends TableName> {
 }
 
 export function useTable<K extends TableName>(table: K): TableHandle<K> {
-  const [rows, setRows] = useState<Tables[K][]>([])
-  const [loading, setLoading] = useState(true)
+  // Seed from the shared cache so navigating back to a page shows its data
+  // immediately instead of flashing an empty state.
+  const [rows, setRows] = useState<Tables[K][]>(() => peek(table) ?? [])
+  const [loading, setLoading] = useState(() => peek(table) === null)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(() => {
-    let cancelled = false
-    listTable(table)
-      .then((data) => {
-        if (cancelled) return
-        setRows(data)
-        setError(null)
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [table])
+  // A generation counter rather than a per-call cancel flag: a notify while a
+  // read is in flight would otherwise leave the older response free to land
+  // after the newer one and overwrite it.
+  const generation = useRef(0)
+  const mounted = useRef(true)
+
+  const load = useCallback(
+    (fresh = false) => {
+      const run = ++generation.current
+      listTable(table, { fresh })
+        .then((data) => {
+          if (!mounted.current || run !== generation.current) return
+          setRows(data)
+          setError(null)
+        })
+        .catch((err: Error) => {
+          if (!mounted.current || run !== generation.current) return
+          setError(err.message)
+        })
+        .finally(() => {
+          if (mounted.current && run === generation.current) setLoading(false)
+        })
+    },
+    [table],
+  )
 
   useEffect(() => {
-    const cancel = load()
+    mounted.current = true
+    load()
     const unsub = subscribe(table, () => load())
     return () => {
-      cancel()
+      mounted.current = false
       unsub()
     }
   }, [table, load])
+
+  /** Forces a round trip, bypassing the shared cache. */
+  const refresh = useCallback(() => load(true), [load])
 
   const insert = useCallback(
     async (row: Omit<Tables[K], 'id'> & { id?: string }) => {
@@ -334,7 +412,7 @@ export function useTable<K extends TableName>(table: K): TableHandle<K> {
   )
 
   return useMemo(
-    () => ({ rows, loading, error, insert, update, remove, refresh: load }),
-    [rows, loading, error, insert, update, remove, load],
+    () => ({ rows, loading, error, insert, update, remove, refresh }),
+    [rows, loading, error, insert, update, remove, refresh],
   )
 }

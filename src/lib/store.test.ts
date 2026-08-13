@@ -133,6 +133,49 @@ describe('seeding', () => {
   })
 })
 
+describe('read cache', () => {
+  it('serves repeat reads without touching storage again', async () => {
+    const { insertRow, listTable } = await import('./store')
+    await insertRow('budgets', { category: 'Dining', monthly_limit: 100 })
+
+    const spy = vi.spyOn(localStorage, 'getItem')
+    await listTable('budgets')
+    await listTable('budgets')
+    await listTable('budgets')
+
+    // One read populates the cache; the rest are served from it.
+    const budgetReads = spy.mock.calls.filter(([key]) => key === 'ld.local.budgets')
+    expect(budgetReads.length).toBeLessThanOrEqual(1)
+  })
+
+  it('shares one in-flight request between concurrent callers', async () => {
+    const { insertRow, listTable } = await import('./store')
+    await insertRow('budgets', { category: 'Dining', monthly_limit: 100 })
+
+    const [a, b] = await Promise.all([listTable('budgets'), listTable('budgets')])
+    // Same array instance means one fetch was shared, not two run in parallel.
+    expect(a).toBe(b)
+  })
+
+  it('invalidates on write so the next read sees the change', async () => {
+    const { insertRow, listTable } = await import('./store')
+    await insertRow('budgets', { category: 'Dining', monthly_limit: 100 })
+    expect(await listTable('budgets')).toHaveLength(1)
+
+    await insertRow('budgets', { category: 'Groceries', monthly_limit: 500 })
+    expect(await listTable('budgets')).toHaveLength(2)
+  })
+
+  it('does not keep serving rows after the data is cleared', async () => {
+    const { ensureSeeded, listTable, clearLocalData } = await import('./store')
+    ensureSeeded()
+    expect((await listTable('transactions')).length).toBeGreaterThan(0)
+
+    clearLocalData()
+    expect(await listTable('transactions')).toEqual([])
+  })
+})
+
 describe('backup', () => {
   it('exports and re-imports every table', async () => {
     const { ensureSeeded, exportAllData, importAllData, clearLocalData, listTable } =

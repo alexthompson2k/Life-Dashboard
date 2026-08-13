@@ -373,24 +373,65 @@ export function Skeleton({ className = '' }: { className?: string }) {
 /* Toasts                                                              */
 /* ------------------------------------------------------------------ */
 
+interface ToastAction {
+  label: string
+  onClick: () => void | Promise<void>
+}
+
 interface Toast {
   id: number
   message: string
   intent: 'success' | 'error'
+  action?: ToastAction
 }
 
-const ToastContext = createContext<{ push: (m: string, i?: Toast['intent']) => void } | null>(null)
+interface ToastApi {
+  push: (message: string, intent?: Toast['intent']) => void
+  /** A toast carrying an action, e.g. undoing a delete. Stays up longer. */
+  pushAction: (message: string, action: ToastAction, intent?: Toast['intent']) => void
+}
+
+const ToastContext = createContext<ToastApi | null>(null)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  const push = useCallback((message: string, intent: Toast['intent'] = 'success') => {
-    const id = Date.now() + Math.random()
-    setToasts((t) => [...t, { id, message, intent }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000)
+  const dismiss = useCallback((id: number) => {
+    setToasts((t) => t.filter((x) => x.id !== id))
   }, [])
 
-  const value = useMemo(() => ({ push }), [push])
+  const add = useCallback(
+    (message: string, intent: Toast['intent'], action: ToastAction | undefined, ms: number) => {
+      const id = Date.now() + Math.random()
+      setToasts((t) => [...t, { id, message, intent, action }])
+      setTimeout(() => dismiss(id), ms)
+      return id
+    },
+    [dismiss],
+  )
+
+  const push = useCallback(
+    (message: string, intent: Toast['intent'] = 'success') => {
+      add(message, intent, undefined, 4000)
+    },
+    [add],
+  )
+
+  const pushAction = useCallback(
+    (message: string, action: ToastAction, intent: Toast['intent'] = 'success') => {
+      // Longer window: an undo you cannot reach in time is not an undo.
+      const id = add(message, intent, {
+        label: action.label,
+        onClick: async () => {
+          await action.onClick()
+          dismiss(id)
+        },
+      }, 8000)
+    },
+    [add, dismiss],
+  )
+
+  const value = useMemo(() => ({ push, pushAction }), [push, pushAction])
 
   return (
     <ToastContext.Provider value={value}>
@@ -415,7 +456,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             ) : (
               <Check size={15} style={{ color: 'var(--status-good)' }} />
             )}
-            <span className="text-ink-primary">{t.message}</span>
+            <span className="flex-1 text-ink-primary">{t.message}</span>
+            {t.action && (
+              <button
+                onClick={() => void t.action!.onClick()}
+                className="btn !px-2.5 !py-1 !text-xs font-semibold"
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

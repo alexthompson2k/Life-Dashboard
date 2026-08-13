@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, LogOut, RotateCcw, Upload } from 'lucide-react'
 import { useSettings } from '../lib/settings'
 import { isCloudMode, supabase } from '../lib/supabase'
@@ -13,7 +13,17 @@ export default function Settings() {
   const { pref, setPref } = useTheme()
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
+
+  /*
+   * Settings load asynchronously, so seeding this from the first render would
+   * leave the field showing the empty default forever — and blurring it would
+   * then save that blank over the real name. Re-sync whenever the stored value
+   * changes, which after a save is just what was typed.
+   */
   const [name, setName] = useState(settings.display_name)
+  useEffect(() => {
+    setName(settings.display_name)
+  }, [settings.display_name])
 
   const [busy, setBusy] = useState(false)
 

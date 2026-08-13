@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Flame, Plus, Repeat, Trash2 } from 'lucide-react'
-import { useTable } from '../lib/store'
+import { insertRow, useTable } from '../lib/store'
 import {
   Button,
   Card,
@@ -15,12 +15,14 @@ import {
 import { slotColor, usePalette } from '../components/charts'
 import { habitCompletion, habitStreak, heatmapWeeks } from '../lib/fitness'
 import { toISODate } from '../lib/format'
+import { useUndoableDelete } from '../lib/undo'
 import type { Habit, HabitLog } from '../lib/types'
 
 export default function Habits() {
   const habits = useTable('habits')
   const logs = useTable('habit_logs')
   const toast = useToast()
+  const { run } = useUndoableDelete()
   const [adding, setAdding] = useState(false)
 
   const today = toISODate()
@@ -103,8 +105,18 @@ export default function Habits() {
               doneToday={loggedToday.has(habit.id)}
               onToggle={() => void toggle(habit)}
               onDelete={() => {
-                void habits.remove(habit.id)
-                toast.push('Habit removed')
+                // Deleting a habit takes its logs with it, so undo has to put
+                // the history back too — otherwise the streak silently resets.
+                const history = logs.rows.filter((l) => l.habit_id === habit.id)
+                const snapshot = { ...habit }
+                void run(
+                  'Habit',
+                  () => habits.remove(habit.id),
+                  async () => {
+                    await insertRow('habits', snapshot)
+                    for (const log of history) await insertRow('habit_logs', { ...log })
+                  },
+                )
               }}
             />
           ))}

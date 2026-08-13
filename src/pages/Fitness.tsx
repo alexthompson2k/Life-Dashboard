@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Dumbbell, Plus, Scale, Trash2, TrendingDown, Trophy } from 'lucide-react'
-import { useTable } from '../lib/store'
+import { insertRow, useTable } from '../lib/store'
 import { useSettings } from '../lib/settings'
 import {
   Button,
@@ -30,6 +30,7 @@ import {
   toISODate,
   weightUnit,
 } from '../lib/format'
+import { useUndoableDelete } from '../lib/undo'
 import type { WorkoutSet } from '../lib/types'
 
 type Tab = 'weight' | 'strength' | 'sessions'
@@ -40,6 +41,7 @@ export default function Fitness() {
   const workouts = useTable('workouts')
   const sets = useTable('workout_sets')
 
+  const { removeRow } = useUndoableDelete()
   const [tab, setTab] = useState<Tab>('weight')
   const [loggingWeight, setLoggingWeight] = useState(false)
   const [loggingWorkout, setLoggingWorkout] = useState(false)
@@ -189,7 +191,7 @@ export default function Fitness() {
                           {formatWeight(w.weight_kg, units)}
                         </span>
                         <button
-                          onClick={() => void weights.remove(w.id)}
+                          onClick={() => void removeRow('weights', w, weights.remove, 'Weigh-in')}
                           className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                           aria-label="Delete weigh-in"
                         >
@@ -348,7 +350,7 @@ function SessionsTab({
   sets: WorkoutSet[]
   units: 'metric' | 'imperial'
 }) {
-  const toast = useToast()
+  const { run } = useUndoableDelete()
   const unit = weightUnit(units)
 
   const setsByWorkout = useMemo(() => {
@@ -397,8 +399,17 @@ function SessionsTab({
             action={
               <button
                 onClick={() => {
-                  void workouts.remove(w.id)
-                  toast.push('Session deleted')
+                  // Sets cascade with the workout, so undo restores both.
+                  const snapshot = { ...w }
+                  const sessionSets = (setsByWorkout.get(w.id) ?? []).map((s) => ({ ...s }))
+                  void run(
+                    'Session',
+                    () => workouts.remove(w.id),
+                    async () => {
+                      await insertRow('workouts', snapshot)
+                      for (const set of sessionSets) await insertRow('workout_sets', set)
+                    },
+                  )
                 }}
                 className="btn btn-ghost !p-1.5"
                 aria-label={`Delete ${w.name}`}

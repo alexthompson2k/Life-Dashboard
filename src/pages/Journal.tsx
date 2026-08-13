@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Trash2 } from 'lucide-react'
 import { useTable } from '../lib/store'
 import { Button, Card, EmptyState, Field, Stat, useToast } from '../components/ui'
 import { TimeSeriesChart } from '../components/charts'
 import { toISODate } from '../lib/format'
+import { useUndoableDelete } from '../lib/undo'
 
 const MOODS = [
   { value: 1, emoji: '😞', label: 'Rough' },
@@ -16,13 +17,31 @@ const MOODS = [
 export default function Journal() {
   const journal = useTable('journal')
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const today = toISODate()
 
   const existing = journal.rows.find((r) => r.date === today)
-  const [mood, setMood] = useState(existing?.mood ?? 3)
-  const [energy, setEnergy] = useState(existing?.energy ?? 3)
-  const [entry, setEntry] = useState(existing?.entry ?? '')
-  const [gratitude, setGratitude] = useState(existing?.gratitude ?? '')
+
+  const [mood, setMood] = useState(3)
+  const [energy, setEnergy] = useState(3)
+  const [entry, setEntry] = useState('')
+  const [gratitude, setGratitude] = useState('')
+
+  /*
+   * Entries arrive asynchronously. Seeding the form from the first render left
+   * it showing blank defaults even when today was already written — and saving
+   * from there overwrote the real entry. Hydrate once the row appears, keyed on
+   * its id so re-renders never clobber what is being typed.
+   */
+  const hydratedFrom = useRef<string | null>(null)
+  useEffect(() => {
+    if (!existing || hydratedFrom.current === existing.id) return
+    hydratedFrom.current = existing.id
+    setMood(existing.mood)
+    setEnergy(existing.energy)
+    setEntry(existing.entry)
+    setGratitude(existing.gratitude ?? '')
+  }, [existing])
 
   const sorted = useMemo(
     () => [...journal.rows].sort((a, b) => b.date.localeCompare(a.date)),
@@ -211,7 +230,7 @@ export default function Journal() {
                     )}
                   </div>
                   <button
-                    onClick={() => void journal.remove(r.id)}
+                    onClick={() => void removeRow('journal', r, journal.remove, 'Entry')}
                     className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                     aria-label="Delete entry"
                   >

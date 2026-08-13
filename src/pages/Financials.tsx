@@ -32,6 +32,7 @@ import {
 } from '../lib/finance'
 import { currency, monthLabel, monthLabelLong, monthKey, toISODate } from '../lib/format'
 import { apiUrl } from '../lib/api'
+import { useUndoableDelete } from '../lib/undo'
 import type { Account, AccountType, Transaction } from '../lib/types'
 
 const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
@@ -270,6 +271,7 @@ function TransactionsTab({
   format: (v: number) => string
 }) {
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const [category, setCategory] = useState('all')
   const [month, setMonth] = useState(currentMonthKey())
   const [query, setQuery] = useState('')
@@ -389,10 +391,9 @@ function TransactionsTab({
                     </td>
                     <td className="px-2 py-2 text-right">
                       <button
-                        onClick={() => {
-                          void transactions.remove(t.id)
-                          toast.push('Transaction deleted')
-                        }}
+                        onClick={() =>
+                          void removeRow('transactions', t, transactions.remove, 'Transaction')
+                        }
                         className="btn btn-ghost !p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                         aria-label={`Delete ${t.name}`}
                       >
@@ -541,6 +542,7 @@ function BudgetsTab({
   format: (v: number) => string
 }) {
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const [category, setCategory] = useState('Groceries')
   const [limit, setLimit] = useState('')
 
@@ -619,7 +621,7 @@ function BudgetsTab({
                     <span className="flex items-center gap-2">
                       <span className="tnum text-ink-primary">{format(b.monthly_limit)}</span>
                       <button
-                        onClick={() => void budgets.remove(b.id)}
+                        onClick={() => void removeRow('budgets', b, budgets.remove, 'Budget')}
                         className="text-ink-muted hover:text-ink-primary"
                         aria-label={`Remove ${b.category} budget`}
                       >

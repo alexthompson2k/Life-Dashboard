@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isCloudMode, supabase } from '../lib/supabase'
+import { invalidateAll } from '../lib/store'
 import { Button, Callout, Field } from './ui'
 
 /**
@@ -17,7 +18,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setSession(data.session)
       setReady(true)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession((previous) => {
+        // The store caches reads per table. Signing out — or in as somebody
+        // else — must drop that cache, or the next account briefly sees the
+        // previous one's rows.
+        if (previous?.user.id !== next?.user.id) invalidateAll()
+        return next
+      })
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 

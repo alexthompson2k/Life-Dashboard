@@ -24,6 +24,7 @@ import {
 } from '../components/ui'
 import { usePalette, slotColor } from '../components/charts'
 import { fromISODate, relativeDay, toISODate } from '../lib/format'
+import { useUndoableDelete } from '../lib/undo'
 import type { CalendarEvent, Priority, Recurrence, Task } from '../lib/types'
 
 const PRIORITY_SLOT: Record<Priority, number> = { high: 8, medium: 4, low: 3 }
@@ -106,6 +107,7 @@ export default function TasksPage() {
 
 function ListView({ tasks }: { tasks: ReturnType<typeof useTable<'tasks'>> }) {
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const [filter, setFilter] = useState<'open' | 'today' | 'all'>('open')
   const [list, setList] = useState('all')
 
@@ -230,10 +232,7 @@ function ListView({ tasks }: { tasks: ReturnType<typeof useTable<'tasks'>> }) {
                     key={task.id}
                     task={task}
                     onToggle={() => void toggle(task)}
-                    onDelete={() => {
-                      void tasks.remove(task.id)
-                      toast.push('Task deleted')
-                    }}
+                    onDelete={() => void removeRow('tasks', task, tasks.remove, 'Task')}
                   />
                 ))}
               </ul>
@@ -344,6 +343,7 @@ function CalendarView({
 }) {
   const { settings } = useSettings()
   const palette = usePalette()
+  const { removeRow } = useUndoableDelete()
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -536,7 +536,7 @@ function CalendarView({
                       </p>
                     </div>
                     <button
-                      onClick={() => void events.remove(e.id)}
+                      onClick={() => void removeRow('events', e, events.remove, 'Event')}
                       className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                       aria-label={`Delete ${e.title}`}
                     >

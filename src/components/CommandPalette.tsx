@@ -22,7 +22,6 @@ interface Command {
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const tasks = useTable('tasks')
-  const weights = useTable('weights')
   const toast = useToast()
 
   const [query, setQuery] = useState('')
@@ -94,7 +93,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }
 
     return [...actions, ...navCommands]
-  }, [query, navigate, tasks, toast, weights])
+  }, [query, navigate, tasks, toast])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

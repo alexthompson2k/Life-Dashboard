@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react'
 import { useTable } from './store'
 import type { Settings } from './types'
 
@@ -30,19 +38,26 @@ const SettingsContext = createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const table = useTable('settings')
-  const [creating, setCreating] = useState(false)
 
   const settings = useMemo<Settings>(
     () => ({ ...DEFAULT_SETTINGS, ...(table.rows[0] ?? {}) }),
     [table.rows],
   )
 
-  // A brand-new cloud account has no settings row yet; create one on first load.
+  /*
+   * A brand-new cloud account has no settings row yet; create one on first
+   * load. The guard is a ref, not state: a state flag is only visible after a
+   * commit, so StrictMode's double effect (or two quick renders) could both
+   * pass the check and insert twice.
+   */
+  const creating = useRef(false)
   useEffect(() => {
-    if (table.loading || creating || table.rows.length > 0) return
-    setCreating(true)
+    if (table.loading || creating.current || table.rows.length > 0) return
+    creating.current = true
     const { id: _id, ...rest } = DEFAULT_SETTINGS
-    void table.insert(rest).finally(() => setCreating(false))
+    void table.insert(rest).finally(() => {
+      creating.current = false
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.loading, table.rows.length])
 
