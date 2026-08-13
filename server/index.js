@@ -19,6 +19,17 @@ import { XMLParser } from 'fast-xml-parser'
 import { requireUser } from './auth.js'
 import { supabaseConfigured } from './supabase.js'
 import {
+  createLinkToken,
+  exchangePublicToken,
+  linkedItems,
+  plaidConfigured,
+  plaidEnv,
+  removeItem,
+  syncUser,
+} from './plaid.js'
+import { fetchCalendar, withinWindow } from './calendar.js'
+import { BlockedUrlError } from './urlguard.js'
+import {
   pushConfigured,
   removeSubscription,
   saveSubscription,
@@ -37,36 +48,6 @@ const PORT = process.env.PORT || 8787
 /* Plaid                                                               */
 /* ------------------------------------------------------------------ */
 
-const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID
-const PLAID_SECRET = process.env.PLAID_SECRET
-const PLAID_ENV = process.env.PLAID_ENV || 'sandbox'
-const PLAID_PRODUCTS = (process.env.PLAID_PRODUCTS || 'transactions').split(',')
-const PLAID_COUNTRY_CODES = (process.env.PLAID_COUNTRY_CODES || 'US').split(',')
-
-const plaidConfigured = Boolean(PLAID_CLIENT_ID && PLAID_SECRET)
-
-let plaidClient = null
-
-async function getPlaidClient() {
-  if (!plaidConfigured) return null
-  if (plaidClient) return plaidClient
-
-  // Imported lazily so the server runs without the SDK installed.
-  const { Configuration, PlaidApi, PlaidEnvironments } = await import('plaid')
-  plaidClient = new PlaidApi(
-    new Configuration({
-      basePath: PlaidEnvironments[PLAID_ENV],
-      baseOptions: {
-        headers: {
-          'PLAID-CLIENT-ID': PLAID_CLIENT_ID,
-          'PLAID-SECRET': PLAID_SECRET,
-        },
-      },
-    }),
-  )
-  return plaidClient
-}
-
 function plaidUnavailable(res) {
   return res.status(501).json({
     error:
@@ -74,172 +55,95 @@ function plaidUnavailable(res) {
   })
 }
 
-/**
- * Access tokens are long-lived bank credentials. This reference keeps them in
- * memory, which means they are lost on restart — fine for local single-user
- * use. For anything longer-lived, persist them in a server-side table that the
- * browser cannot read (Supabase with RLS denying all client access).
- */
-const plaidItems = new Map()
-
-app.post('/api/plaid/link-token', async (req, res) => {
-  const client = await getPlaidClient()
-  if (!client) return plaidUnavailable(res)
-
+/** Every Plaid route is user-scoped, so all of them sit behind requireUser. */
+app.post('/api/plaid/link-token', requireUser, async (req, res) => {
+  if (!plaidConfigured) return plaidUnavailable(res)
   try {
-    const response = await client.linkTokenCreate({
-      user: { client_user_id: req.body?.user_id || 'life-dashboard-user' },
-      client_name: 'Life Dashboard',
-      products: PLAID_PRODUCTS,
-      country_codes: PLAID_COUNTRY_CODES,
-      language: 'en',
-    })
-    res.json({ link_token: response.data.link_token })
+    res.json({ link_token: await createLinkToken(req.userId) })
   } catch (err) {
     console.error('link-token failed:', err?.response?.data ?? err.message)
     res.status(502).json({ error: 'Could not create a Plaid link token.' })
   }
 })
 
-app.post('/api/plaid/exchange', async (req, res) => {
-  const client = await getPlaidClient()
-  if (!client) return plaidUnavailable(res)
-
-  const { public_token: publicToken } = req.body ?? {}
+app.post('/api/plaid/exchange', requireUser, async (req, res) => {
+  if (!plaidConfigured) return plaidUnavailable(res)
+  const { public_token: publicToken, institution_name: institutionName } = req.body ?? {}
   if (!publicToken) return res.status(400).json({ error: 'public_token is required.' })
 
   try {
-    const exchange = await client.itemPublicTokenExchange({ public_token: publicToken })
-    const accessToken = exchange.data.access_token
-    const itemId = exchange.data.item_id
-    plaidItems.set(itemId, accessToken)
-
-    const accounts = await client.accountsGet({ access_token: accessToken })
-    res.json({
-      item_id: itemId,
-      accounts: accounts.data.accounts.map(normalizeAccount(itemId)),
-    })
+    const result = await exchangePublicToken(
+      req.userId,
+      publicToken,
+      institutionName ?? null,
+    )
+    res.json(result)
   } catch (err) {
     console.error('exchange failed:', err?.response?.data ?? err.message)
-    res.status(502).json({ error: 'Could not exchange the Plaid public token.' })
+    res.status(502).json({ error: 'Could not link that account.' })
   }
 })
 
-app.get('/api/plaid/accounts', async (_req, res) => {
-  const client = await getPlaidClient()
-  if (!client) return plaidUnavailable(res)
-
+app.post('/api/plaid/sync', requireUser, async (req, res) => {
+  if (!plaidConfigured) return plaidUnavailable(res)
   try {
-    const all = []
-    for (const [itemId, accessToken] of plaidItems) {
-      const response = await client.accountsGet({ access_token: accessToken })
-      all.push(...response.data.accounts.map(normalizeAccount(itemId)))
-    }
-    res.json({ accounts: all })
-  } catch (err) {
-    console.error('accounts failed:', err?.response?.data ?? err.message)
-    res.status(502).json({ error: 'Could not read accounts from Plaid.' })
-  }
-})
-
-app.post('/api/plaid/sync', async (_req, res) => {
-  const client = await getPlaidClient()
-  if (!client) return plaidUnavailable(res)
-
-  try {
-    const accounts = []
-    const transactions = []
-
-    for (const [itemId, accessToken] of plaidItems) {
-      let cursor = undefined
-      let hasMore = true
-
-      while (hasMore) {
-        const response = await client.transactionsSync({
-          access_token: accessToken,
-          cursor,
-        })
-        const data = response.data
-        transactions.push(...data.added.map(normalizeTransaction))
-        cursor = data.next_cursor
-        hasMore = data.has_more
-      }
-
-      const accountsResponse = await client.accountsGet({ access_token: accessToken })
-      accounts.push(...accountsResponse.data.accounts.map(normalizeAccount(itemId)))
-    }
-
-    res.json({ accounts, transactions })
+    res.json(await syncUser(req.userId))
   } catch (err) {
     console.error('sync failed:', err?.response?.data ?? err.message)
-    res.status(502).json({ error: 'Could not sync transactions from Plaid.' })
+    res.status(502).json({ error: 'Could not sync from Plaid.' })
   }
 })
 
-const PLAID_TYPE_MAP = {
-  depository: { checking: 'checking', savings: 'savings', cd: 'savings', 'money market': 'savings' },
-  credit: { 'credit card': 'credit' },
-  loan: {},
-  investment: {},
-}
+app.get('/api/plaid/items', requireUser, async (req, res) => {
+  if (!plaidConfigured) return plaidUnavailable(res)
+  try {
+    res.json({ items: await linkedItems(req.userId) })
+  } catch (err) {
+    console.error('items failed:', err.message)
+    res.status(502).json({ error: 'Could not list linked banks.' })
+  }
+})
 
-function normalizeAccount(itemId) {
-  return (account) => {
-    const subtypeMap = PLAID_TYPE_MAP[account.type] ?? {}
-    const type =
-      subtypeMap[account.subtype] ??
-      (account.type === 'credit'
-        ? 'credit'
-        : account.type === 'loan'
-          ? 'loan'
-          : account.type === 'investment'
-            ? 'investment'
-            : account.type === 'depository'
-              ? 'checking'
-              : 'other')
+app.delete('/api/plaid/items/:itemId', requireUser, async (req, res) => {
+  if (!plaidConfigured) return plaidUnavailable(res)
+  try {
+    await removeItem(req.userId, req.params.itemId)
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('unlink failed:', err.message)
+    res.status(502).json({ error: 'Could not unlink that bank.' })
+  }
+})
 
-    return {
-      plaid_account_id: account.account_id,
-      plaid_item_id: itemId,
-      name: account.name,
-      institution: account.official_name ?? null,
-      type,
-      // Liabilities are stored as a positive "amount owed".
-      balance:
-        type === 'credit' || type === 'loan'
-          ? Math.abs(account.balances.current ?? 0)
-          : (account.balances.current ?? 0),
-      currency: account.balances.iso_currency_code ?? 'USD',
-      is_manual: false,
-      updated_at: new Date().toISOString(),
+/* ------------------------------------------------------------------ */
+/* Calendar (ICS subscriptions)                                        */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/calendar', requireUser, async (req, res) => {
+  const url = String(req.query.url ?? '')
+  const label = String(req.query.label ?? 'Calendar')
+  if (!url) return res.status(400).json({ error: 'A calendar URL is required.' })
+
+  const from = new Date()
+  from.setDate(from.getDate() - 7)
+  const to = new Date()
+  to.setDate(to.getDate() + 60)
+
+  try {
+    const events = await fetchCalendar(url, { label, force: req.query.force === '1' })
+    res.json({
+      events: withinWindow(events, { from, to }),
+      fetched_at: new Date().toISOString(),
+    })
+  } catch (err) {
+    if (err instanceof BlockedUrlError) {
+      // A refused URL is the caller's mistake, not a server fault.
+      return res.status(400).json({ error: err.message })
     }
+    console.error('calendar fetch failed:', err.message)
+    res.status(502).json({ error: `Could not read that calendar. ${err.message}` })
   }
-}
-
-/** Plaid signs outflows positive; this app signs them negative. */
-function normalizeTransaction(txn) {
-  return {
-    plaid_transaction_id: txn.transaction_id,
-    plaid_account_id: txn.account_id,
-    date: txn.date,
-    name: txn.name,
-    merchant: txn.merchant_name ?? null,
-    amount: -txn.amount,
-    category: txn.personal_finance_category?.primary
-      ? titleCase(txn.personal_finance_category.primary)
-      : (txn.category?.[0] ?? 'Other'),
-    pending: Boolean(txn.pending),
-    notes: null,
-  }
-}
-
-function titleCase(value) {
-  return value
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-}
+})
 
 /* ------------------------------------------------------------------ */
 /* News                                                                */
@@ -419,8 +323,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     plaid_configured: plaidConfigured,
-    plaid_env: plaidConfigured ? PLAID_ENV : null,
-    linked_items: plaidItems.size,
+    plaid_env: plaidConfigured ? plaidEnv : null,
     supabase_configured: supabaseConfigured,
     push_configured: pushConfigured,
     news_topics: Object.keys(FEEDS),
@@ -431,7 +334,7 @@ app.listen(PORT, () => {
   console.log(`API server listening on http://localhost:${PORT}`)
   console.log(
     plaidConfigured
-      ? `Plaid: configured (${PLAID_ENV})`
+      ? `Plaid: configured (${plaidEnv})`
       : 'Plaid: not configured — bank linking is disabled until you add keys to server/.env',
   )
   console.log(

@@ -56,7 +56,7 @@ export function formatWeight(kg: number, units: UnitSystem, digits = 1) {
 /* ---------- temperature ---------- */
 
 export function cToDisplay(c: number, units: UnitSystem) {
-  return units === 'imperial' ? c * 9 / 5 + 32 : c
+  return units === 'imperial' ? (c * 9) / 5 + 32 : c
 }
 
 export function tempUnit(units: UnitSystem) {
@@ -119,7 +119,10 @@ export function monthLabel(key: string) {
 /** Long form for card subtitles, where there is room to be unambiguous. */
 export function monthLabelLong(key: string) {
   const [y, m] = key.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 export function timeOfDayGreeting(d = new Date()) {

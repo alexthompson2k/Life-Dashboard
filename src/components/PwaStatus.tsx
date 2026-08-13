@@ -93,7 +93,9 @@ function Banner({
 }
 
 function useOffline() {
-  const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== 'undefined' && !navigator.onLine,
+  )
 
   useEffect(() => {
     const on = () => setOffline(false)

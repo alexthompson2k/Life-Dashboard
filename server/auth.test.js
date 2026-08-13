@@ -93,7 +93,11 @@ describe('requireUser', () => {
   it('never trusts a user id supplied by the caller', async () => {
     mocks.userIdFromToken.mockResolvedValue('real-user')
     // A request body claiming to be someone else must not win.
-    const req = { ...mockReq('Bearer good-token'), userId: 'attacker-supplied', body: { user_id: 'victim' } }
+    const req = {
+      ...mockReq('Bearer good-token'),
+      userId: 'attacker-supplied',
+      body: { user_id: 'victim' },
+    }
     const res = mockRes()
 
     await requireUser(req, res, vi.fn())

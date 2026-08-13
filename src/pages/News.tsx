@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Newspaper, RefreshCw } from 'lucide-react'
 import { useSettings } from '../lib/settings'
-import { Button, Callout, Card, EmptyState, SegmentedControl, Skeleton } from '../components/ui'
+import {
+  Button,
+  Callout,
+  Card,
+  EmptyState,
+  SegmentedControl,
+  Skeleton,
+} from '../components/ui'
 import { fetchNews, NEWS_TOPICS, timeAgo, type NewsItem } from '../lib/news'
 
 export default function News() {

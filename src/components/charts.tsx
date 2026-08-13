@@ -164,7 +164,10 @@ export function ChartFrame({
       {series.length > 1 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-2.5">
           {series.map((s) => (
-            <span key={s.key} className="flex items-center gap-1.5 text-xs text-ink-secondary">
+            <span
+              key={s.key}
+              className="flex items-center gap-1.5 text-xs text-ink-secondary"
+            >
               <span
                 aria-hidden
                 className="inline-block h-0.5 w-4 rounded-full"
@@ -233,7 +236,8 @@ function ChartTooltip({
       <div className="space-y-1">
         {payload.map((entry, i) => {
           const key = String(entry.dataKey ?? entry.name ?? i)
-          const value = typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0)
+          const value =
+            typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0)
           return (
             <div key={key + i} className="flex items-center justify-between gap-4">
               <span className="flex items-center gap-1.5 text-ink-secondary">
@@ -298,7 +302,11 @@ export function TimeSeriesChart<T extends object>({
     <DataTable
       data={data}
       columns={[
-        { key: xKey, label: 'Date', format: (v) => (xFormat ? xFormat(String(v)) : String(v)) },
+        {
+          key: xKey,
+          label: 'Date',
+          format: (v) => (xFormat ? xFormat(String(v)) : String(v)),
+        },
         ...series.map((s) => ({
           key: s.key,
           label: s.label,
@@ -325,10 +333,25 @@ export function TimeSeriesChart<T extends object>({
             {series
               .filter((s) => s.kind === 'area')
               .map((s) => (
-                <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  key={s.key}
+                  id={`fill-${s.key}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   {/* An area fill is a wash, never a saturated block. */}
-                  <stop offset="0%" stopColor={slotColor(palette, s.slot)} stopOpacity={0.14} />
-                  <stop offset="100%" stopColor={slotColor(palette, s.slot)} stopOpacity={0.02} />
+                  <stop
+                    offset="0%"
+                    stopColor={slotColor(palette, s.slot)}
+                    stopOpacity={0.14}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={slotColor(palette, s.slot)}
+                    stopOpacity={0.02}
+                  />
                 </linearGradient>
               ))}
           </defs>
@@ -469,7 +492,10 @@ export function CategoryBars({
         {rows.map((row) => {
           const color = slotColor(palette, colorBySlot ? (row.slot ?? slot) : slot)
           return (
-            <div key={row.label} className="group grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-3">
+            <div
+              key={row.label}
+              className="group grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-3"
+            >
               <span className="truncate text-xs text-ink-secondary" title={row.label}>
                 {row.label}
               </span>
@@ -574,8 +600,13 @@ export function Sparkline({
   const max = Math.max(...values)
   const span = max - min || 1
   const step = width / (values.length - 1)
-  const points = values.map((v, i) => [i * step, height - ((v - min) / span) * (height - 4) - 2])
-  const d = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const points = values.map((v, i) => [
+    i * step,
+    height - ((v - min) / span) * (height - 4) - 2,
+  ])
+  const d = points
+    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ')
   const last = points[points.length - 1]
 
   return (

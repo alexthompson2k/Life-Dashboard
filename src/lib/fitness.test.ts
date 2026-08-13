@@ -106,9 +106,30 @@ describe('exerciseProgress', () => {
     { id: 'w2', date: '2026-08-08', name: 'Push', duration_min: 60, notes: null },
   ]
   const sets: WorkoutSet[] = [
-    { id: 's1', workout_id: 'w1', exercise: 'Bench Press', set_index: 1, reps: 5, weight_kg: 80 },
-    { id: 's2', workout_id: 'w1', exercise: 'Bench Press', set_index: 2, reps: 5, weight_kg: 90 },
-    { id: 's3', workout_id: 'w2', exercise: 'Bench Press', set_index: 1, reps: 5, weight_kg: 100 },
+    {
+      id: 's1',
+      workout_id: 'w1',
+      exercise: 'Bench Press',
+      set_index: 1,
+      reps: 5,
+      weight_kg: 80,
+    },
+    {
+      id: 's2',
+      workout_id: 'w1',
+      exercise: 'Bench Press',
+      set_index: 2,
+      reps: 5,
+      weight_kg: 90,
+    },
+    {
+      id: 's3',
+      workout_id: 'w2',
+      exercise: 'Bench Press',
+      set_index: 1,
+      reps: 5,
+      weight_kg: 100,
+    },
   ]
 
   it('tracks the top set and total volume per session', () => {
@@ -135,7 +156,16 @@ describe('exerciseProgress', () => {
     expect(
       exerciseProgress(
         [],
-        [{ id: 'x', workout_id: 'gone', exercise: 'Squat', set_index: 1, reps: 5, weight_kg: 100 }],
+        [
+          {
+            id: 'x',
+            workout_id: 'gone',
+            exercise: 'Squat',
+            set_index: 1,
+            reps: 5,
+            weight_kg: 100,
+          },
+        ],
       ),
     ).toEqual([])
   })
@@ -163,8 +193,22 @@ describe('weeklyVolume', () => {
         { id: 'w2', date: '2026-08-12', name: 'B', duration_min: null, notes: null },
       ],
       [
-        { id: 's1', workout_id: 'w1', exercise: 'Squat', set_index: 1, reps: 5, weight_kg: 100 },
-        { id: 's2', workout_id: 'w2', exercise: 'Squat', set_index: 1, reps: 5, weight_kg: 100 },
+        {
+          id: 's1',
+          workout_id: 'w1',
+          exercise: 'Squat',
+          set_index: 1,
+          reps: 5,
+          weight_kg: 100,
+        },
+        {
+          id: 's2',
+          workout_id: 'w2',
+          exercise: 'Squat',
+          set_index: 1,
+          reps: 5,
+          weight_kg: 100,
+        },
       ],
     )
     expect(volume).toHaveLength(1)

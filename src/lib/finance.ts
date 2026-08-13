@@ -12,10 +12,7 @@ export function isLiability(account: Account) {
 }
 
 export function netWorth(accounts: Account[]) {
-  return accounts.reduce(
-    (sum, a) => sum + (isLiability(a) ? -a.balance : a.balance),
-    0,
-  )
+  return accounts.reduce((sum, a) => sum + (isLiability(a) ? -a.balance : a.balance), 0)
 }
 
 export function totalAssets(accounts: Account[]) {
@@ -42,7 +39,9 @@ export function spendOf(txns: Transaction[]) {
 }
 
 export function incomeOf(txns: Transaction[]) {
-  return txns.filter((t) => t.amount > 0 && t.category !== 'Transfer').reduce((s, t) => s + t.amount, 0)
+  return txns
+    .filter((t) => t.amount > 0 && t.category !== 'Transfer')
+    .reduce((s, t) => s + t.amount, 0)
 }
 
 export interface MonthSummary {
@@ -109,7 +108,10 @@ export interface BudgetStatus {
   state: 'good' | 'warning' | 'critical'
 }
 
-export function budgetStatuses(budgets: Budget[], monthTxns: Transaction[]): BudgetStatus[] {
+export function budgetStatuses(
+  budgets: Budget[],
+  monthTxns: Transaction[],
+): BudgetStatus[] {
   return budgets
     .map((b) => {
       const spent = monthTxns

@@ -86,7 +86,8 @@ export default function Weather() {
 
       {error && (
         <Callout intent="warning">
-          Could not load the forecast: {error} Open-Meteo may be unreachable from this network.
+          Could not load the forecast: {error} Open-Meteo may be unreachable from this
+          network.
         </Callout>
       )}
 
@@ -112,8 +113,8 @@ export default function Weather() {
                       {formatTemp(current.temperature_c, units)}
                     </p>
                     <p className="text-sm text-ink-secondary">
-                      {describeWeather(current.weather_code, current.is_day).label} · feels like{' '}
-                      {formatTemp(current.apparent_c, units)}
+                      {describeWeather(current.weather_code, current.is_day).label} · feels
+                      like {formatTemp(current.apparent_c, units)}
                     </p>
                   </div>
                 </div>
@@ -184,7 +185,9 @@ export default function Weather() {
                 data={hourly}
                 xKey="time"
                 xFormat={(v) =>
-                  new Date(v).toLocaleTimeString('en-US', { hour: 'numeric' }).replace(' ', '')
+                  new Date(v)
+                    .toLocaleTimeString('en-US', { hour: 'numeric' })
+                    .replace(' ', '')
                 }
                 yFormat={(v) => `${v.toFixed(0)}${tempUnit(units)}`}
                 yDomain={['dataMin - 2', 'dataMax + 2']}
@@ -195,11 +198,15 @@ export default function Weather() {
                 data={hourly}
                 xKey="time"
                 xFormat={(v) =>
-                  new Date(v).toLocaleTimeString('en-US', { hour: 'numeric' }).replace(' ', '')
+                  new Date(v)
+                    .toLocaleTimeString('en-US', { hour: 'numeric' })
+                    .replace(' ', '')
                 }
                 yFormat={(v) => `${v.toFixed(0)}%`}
                 yDomain={[0, 100]}
-                series={[{ key: 'rain', label: 'Precipitation chance', slot: 1, kind: 'bar' }]}
+                series={[
+                  { key: 'rain', label: 'Precipitation chance', slot: 1, kind: 'bar' },
+                ]}
               />
             </div>
 
@@ -220,7 +227,11 @@ export default function Weather() {
                               day: 'numeric',
                             })}
                       </span>
-                      <span className="text-lg" aria-label={described.label} title={described.label}>
+                      <span
+                        className="text-lg"
+                        aria-label={described.label}
+                        title={described.label}
+                      >
                         {described.icon}
                       </span>
                       <span className="truncate text-xs text-ink-secondary">
@@ -235,7 +246,9 @@ export default function Weather() {
                         <span className="font-medium text-ink-primary">
                           {formatTemp(day.max_c, units)}
                         </span>
-                        <span className="ml-2 text-ink-muted">{formatTemp(day.min_c, units)}</span>
+                        <span className="ml-2 text-ink-muted">
+                          {formatTemp(day.min_c, units)}
+                        </span>
                       </span>
                     </li>
                   )

@@ -68,7 +68,13 @@ export function Stat({
   icon?: ReactNode
 }) {
   const deltaIntent =
-    intent !== 'neutral' ? intent : delta === undefined ? 'neutral' : delta >= 0 ? 'good' : 'bad'
+    intent !== 'neutral'
+      ? intent
+      : delta === undefined
+        ? 'neutral'
+        : delta >= 0
+          ? 'good'
+          : 'bad'
   const deltaColor =
     deltaIntent === 'good'
       ? 'text-[var(--status-good)]'
@@ -79,7 +85,9 @@ export function Stat({
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-secondary">
+          {label}
+        </p>
         {icon && <span className="text-ink-muted">{icon}</span>}
       </div>
       <p className="tnum mt-2 text-2xl font-semibold text-ink-primary">{value}</p>
@@ -401,7 +409,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const add = useCallback(
-    (message: string, intent: Toast['intent'], action: ToastAction | undefined, ms: number) => {
+    (
+      message: string,
+      intent: Toast['intent'],
+      action: ToastAction | undefined,
+      ms: number,
+    ) => {
       const id = Date.now() + Math.random()
       setToasts((t) => [...t, { id, message, intent, action }])
       setTimeout(() => dismiss(id), ms)
@@ -420,13 +433,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const pushAction = useCallback(
     (message: string, action: ToastAction, intent: Toast['intent'] = 'success') => {
       // Longer window: an undo you cannot reach in time is not an undo.
-      const id = add(message, intent, {
-        label: action.label,
-        onClick: async () => {
-          await action.onClick()
-          dismiss(id)
+      const id = add(
+        message,
+        intent,
+        {
+          label: action.label,
+          onClick: async () => {
+            await action.onClick()
+            dismiss(id)
+          },
         },
-      }, 8000)
+        8000,
+      )
     },
     [add, dismiss],
   )

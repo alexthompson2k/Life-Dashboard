@@ -15,7 +15,13 @@ import { useTable } from '../lib/store'
 import { useSettings } from '../lib/settings'
 import { Card, EmptyState, ProgressBar, Skeleton, Stat } from '../components/ui'
 import { Sparkline, slotColor, usePalette } from '../components/charts'
-import { budgetStatuses, currentMonthKey, inMonth, monthlySummaries, netWorth } from '../lib/finance'
+import {
+  budgetStatuses,
+  currentMonthKey,
+  inMonth,
+  monthlySummaries,
+  netWorth,
+} from '../lib/finance'
 import { habitStreak, weightRateOfChange, weightSeries } from '../lib/fitness'
 import { fetchNews, timeAgo, type NewsItem } from '../lib/news'
 import { dayAdvice, describeWeather, fetchForecast, type Forecast } from '../lib/weather'
@@ -67,13 +73,18 @@ export default function Overview() {
   }, [settings.news_topics])
 
   /* ---- money ---- */
-  const summaries = useMemo(() => monthlySummaries(transactions.rows, 6), [transactions.rows])
+  const summaries = useMemo(
+    () => monthlySummaries(transactions.rows, 6),
+    [transactions.rows],
+  )
   const currentMonth = summaries[summaries.length - 1]
   const monthTxns = useMemo(
     () => inMonth(transactions.rows, currentMonthKey()),
     [transactions.rows],
   )
-  const overBudget = budgetStatuses(budgets.rows, monthTxns).filter((b) => b.state !== 'good')
+  const overBudget = budgetStatuses(budgets.rows, monthTxns).filter(
+    (b) => b.state !== 'good',
+  )
   const worth = netWorth(accounts.rows)
 
   /* ---- tasks & events ---- */
@@ -265,7 +276,12 @@ export default function Overview() {
                       {currency(worth, code)}
                     </p>
                   </div>
-                  <Sparkline values={summaries.map((s) => s.net)} slot={1} width={140} height={36} />
+                  <Sparkline
+                    values={summaries.map((s) => s.net)}
+                    slot={1}
+                    width={140}
+                    height={36}
+                  />
                 </div>
 
                 {overBudget.length > 0 ? (
@@ -360,14 +376,24 @@ export default function Overview() {
               <>
                 <div className="flex items-center gap-3">
                   <span className="text-4xl" aria-hidden>
-                    {describeWeather(forecast.current.weather_code, forecast.current.is_day).icon}
+                    {
+                      describeWeather(
+                        forecast.current.weather_code,
+                        forecast.current.is_day,
+                      ).icon
+                    }
                   </span>
                   <div>
                     <p className="tnum text-2xl font-semibold text-ink-primary">
                       {formatTemp(forecast.current.temperature_c, units)}
                     </p>
                     <p className="text-xs text-ink-secondary">
-                      {describeWeather(forecast.current.weather_code, forecast.current.is_day).label}
+                      {
+                        describeWeather(
+                          forecast.current.weather_code,
+                          forecast.current.is_day,
+                        ).label
+                      }
                     </p>
                   </div>
                   <div className="ml-auto text-right">
@@ -431,7 +457,9 @@ export default function Overview() {
             <ul className="space-y-2.5 text-sm">
               <li className="flex items-center justify-between">
                 <span className="text-ink-secondary">Workouts</span>
-                <span className="tnum font-medium text-ink-primary">{last7Workouts.length}</span>
+                <span className="tnum font-medium text-ink-primary">
+                  {last7Workouts.length}
+                </span>
               </li>
               <li className="flex items-center justify-between">
                 <span className="text-ink-secondary">Tasks completed</span>
@@ -457,7 +485,10 @@ export default function Overview() {
                 <span className="tnum font-medium text-ink-primary">
                   {currency(
                     transactions.rows
-                      .filter((t) => t.date >= weekAgo() && t.amount < 0 && t.category !== 'Transfer')
+                      .filter(
+                        (t) =>
+                          t.date >= weekAgo() && t.amount < 0 && t.category !== 'Transfer',
+                      )
                       .reduce((s, t) => s + Math.abs(t.amount), 0),
                     code,
                   )}
@@ -506,7 +537,9 @@ function HabitRow({
         >
           {done && <Check size={11} className="text-white" />}
         </span>
-        <span className={`flex-1 truncate text-sm ${done ? 'text-ink-muted' : 'text-ink-primary'}`}>
+        <span
+          className={`flex-1 truncate text-sm ${done ? 'text-ink-muted' : 'text-ink-primary'}`}
+        >
           {name}
         </span>
         {streak > 0 && (

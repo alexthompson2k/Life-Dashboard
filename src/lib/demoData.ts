@@ -19,7 +19,7 @@ function mulberry32(seed: number) {
 }
 
 const rand = mulberry32(20260812)
-const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)]
+const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)]
 const between = (min: number, max: number) => min + rand() * (max - min)
 const id = (prefix: string, n: number) => `${prefix}_${n.toString().padStart(4, '0')}`
 
@@ -129,7 +129,12 @@ const MERCHANTS: Record<string, string[]> = {
   Utilities: ['PG&E', 'Comcast', 'Mint Mobile'],
 }
 
-const SPEND_PROFILE: Array<{ category: string; perMonth: number; min: number; max: number }> = [
+const SPEND_PROFILE: Array<{
+  category: string
+  perMonth: number
+  min: number
+  max: number
+}> = [
   { category: 'Groceries', perMonth: 9, min: 28, max: 145 },
   { category: 'Dining', perMonth: 12, min: 12, max: 78 },
   { category: 'Transport', perMonth: 7, min: 8, max: 62 },
@@ -563,6 +568,7 @@ const settings: Tables['settings'][] = [
     brief_enabled: false,
     brief_time: '07:00',
     timezone: 'America/Los_Angeles',
+    calendar_feeds: [],
   },
 ]
 

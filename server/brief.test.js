@@ -56,9 +56,7 @@ describe('tasks', () => {
   })
 
   it('combines due and overdue into one line', () => {
-    const brief = composeBrief(
-      input({ tasks: [task(), task({ due_date: '2026-08-01' })] }),
-    )
+    const brief = composeBrief(input({ tasks: [task(), task({ due_date: '2026-08-01' })] }))
     expect(brief.lines[0]).toBe('1 task due, 1 overdue')
   })
 
@@ -94,7 +92,9 @@ describe('events', () => {
   it('skips events that have already started', () => {
     const brief = composeBrief(
       input({
-        events: [{ title: 'Early call', start_at: new Date(2026, 7, 12, 6, 0).toISOString() }],
+        events: [
+          { title: 'Early call', start_at: new Date(2026, 7, 12, 6, 0).toISOString() },
+        ],
       }),
     )
     expect(brief.lines).toHaveLength(0)
@@ -106,9 +106,9 @@ describe('weather', () => {
 
   it('gives a high/low in the chosen units', () => {
     expect(composeBrief(input({ weather })).lines[0]).toBe('Partly cloudy 75°/55°')
-    expect(
-      composeBrief(input({ weather, unitSystem: 'metric' })).lines[0],
-    ).toBe('Partly cloudy 24°/13°')
+    expect(composeBrief(input({ weather, unitSystem: 'metric' })).lines[0]).toBe(
+      'Partly cloudy 24°/13°',
+    )
   })
 
   it('turns a high chance of rain into an instruction', () => {
@@ -119,17 +119,23 @@ describe('weather', () => {
 
 describe('budgets', () => {
   it('stays quiet while budgets are comfortable', () => {
-    const brief = composeBrief(input({ budgets: [{ category: 'Dining', limit: 100, spent: 50 }] }))
+    const brief = composeBrief(
+      input({ budgets: [{ category: 'Dining', limit: 100, spent: 50 }] }),
+    )
     expect(brief.lines).toHaveLength(0)
   })
 
   it('warns from 80% used', () => {
-    const brief = composeBrief(input({ budgets: [{ category: 'Dining', limit: 100, spent: 85 }] }))
+    const brief = composeBrief(
+      input({ budgets: [{ category: 'Dining', limit: 100, spent: 85 }] }),
+    )
     expect(brief.lines[0]).toBe('Dining budget at 85%')
   })
 
   it('reports how far over the limit is', () => {
-    const brief = composeBrief(input({ budgets: [{ category: 'Dining', limit: 100, spent: 130 }] }))
+    const brief = composeBrief(
+      input({ budgets: [{ category: 'Dining', limit: 100, spent: 130 }] }),
+    )
     expect(brief.lines[0]).toBe('Dining is 30% over budget')
   })
 
@@ -181,7 +187,9 @@ describe('weigh-in nudge', () => {
   })
 
   it('handles never having weighed in', () => {
-    expect(composeBrief(input({ lastWeighIn: null })).lines[0]).toBe('No weigh-ins logged yet')
+    expect(composeBrief(input({ lastWeighIn: null })).lines[0]).toBe(
+      'No weigh-ins logged yet',
+    )
   })
 })
 

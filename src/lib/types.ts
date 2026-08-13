@@ -3,13 +3,7 @@
 export type ID = string
 
 export type AccountType =
-  | 'checking'
-  | 'savings'
-  | 'credit'
-  | 'investment'
-  | 'loan'
-  | 'cash'
-  | 'other'
+  'checking' | 'savings' | 'credit' | 'investment' | 'loan' | 'cash' | 'other'
 
 /**
  * Balances are stored as the natural balance of the account. Liability
@@ -154,6 +148,8 @@ export interface Settings {
   brief_enabled: boolean
   brief_time: string
   timezone: string
+  /** Subscribed read-only ICS feeds. */
+  calendar_feeds: Array<{ label: string; url: string }>
 }
 
 /** Every table the data layer knows about, and the row type it holds. */

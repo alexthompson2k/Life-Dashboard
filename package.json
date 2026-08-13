@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"server/**/*.js\" \"*.{ts,js,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"server/**/*.js\"",
     "preview": "vite preview",
     "server": "node server/index.js",
     "start": "concurrently -n web,api -c cyan,magenta \"npm:dev\" \"npm:server\""
@@ -38,6 +40,7 @@
     "concurrently": "^9.0.1",
     "jsdom": "^30.0.1",
     "postcss": "^8.4.47",
+    "prettier": "^3.9.6",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.9",

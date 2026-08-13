@@ -45,7 +45,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="card mx-auto max-w-lg p-6 text-center">
-        <div className="mb-3 flex justify-center" style={{ color: 'var(--status-critical)' }}>
+        <div
+          className="mb-3 flex justify-center"
+          style={{ color: 'var(--status-critical)' }}
+        >
           <AlertTriangle size={22} />
         </div>
         <h2 className="text-sm font-semibold text-ink-primary">This page hit an error</h2>

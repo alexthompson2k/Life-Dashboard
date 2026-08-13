@@ -104,8 +104,8 @@ export function BriefSettings() {
         ) : support === 'needs-install' ? (
           <Callout intent="info">
             On iPhone and iPad, notifications only work once the dashboard is installed to
-            the home screen. Open the share menu and choose <em>Add to Home Screen</em>, then
-            come back to this page.
+            the home screen. Open the share menu and choose <em>Add to Home Screen</em>,
+            then come back to this page.
           </Callout>
         ) : support === 'unsupported' ? (
           <Callout intent="warning">
@@ -113,9 +113,9 @@ export function BriefSettings() {
           </Callout>
         ) : serverEnabled === false ? (
           <Callout intent="warning">
-            The server has no VAPID keys, so it cannot send notifications yet. Generate a pair
-            with <code className="font-mono">npx web-push generate-vapid-keys</code> and add
-            them to <code className="font-mono">server/.env</code>.
+            The server has no VAPID keys, so it cannot send notifications yet. Generate a
+            pair with <code className="font-mono">npx web-push generate-vapid-keys</code>{' '}
+            and add them to <code className="font-mono">server/.env</code>.
           </Callout>
         ) : (
           <>
@@ -125,7 +125,11 @@ export function BriefSettings() {
                   <BellOff size={15} /> Turn off
                 </Button>
               ) : (
-                <Button variant="primary" onClick={() => void enable()} disabled={busy || !publicKey}>
+                <Button
+                  variant="primary"
+                  onClick={() => void enable()}
+                  disabled={busy || !publicKey}
+                >
                   <Bell size={15} /> Turn on
                 </Button>
               )}
@@ -137,7 +141,10 @@ export function BriefSettings() {
               )}
             </div>
 
-            <Field label="Time" hint={`Sent in your local timezone (${settings.timezone}).`}>
+            <Field
+              label="Time"
+              hint={`Sent in your local timezone (${settings.timezone}).`}
+            >
               <input
                 type="time"
                 className="input max-w-[10rem]"

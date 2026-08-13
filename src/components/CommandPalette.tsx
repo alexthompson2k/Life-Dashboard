@@ -135,7 +135,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-[12vh]">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        onClick={onClose}
+        aria-hidden
+      />
       <div
         className="card relative z-10 w-full max-w-lg overflow-hidden"
         role="dialog"
@@ -177,8 +181,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                 >
                   <span className="truncate">{command.label}</span>
                   <span className="flex shrink-0 items-center gap-2">
-                    {command.hint && <span className="text-[11px] text-ink-muted">{command.hint}</span>}
-                    {i === cursor && <CornerDownLeft size={13} className="text-ink-muted" />}
+                    {command.hint && (
+                      <span className="text-[11px] text-ink-muted">{command.hint}</span>
+                    )}
+                    {i === cursor && (
+                      <CornerDownLeft size={13} className="text-ink-muted" />
+                    )}
                   </span>
                 </button>
               </li>

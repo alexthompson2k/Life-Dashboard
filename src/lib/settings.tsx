@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
     typeof Intl !== 'undefined'
       ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC')
       : 'UTC',
+  calendar_feeds: [],
 }
 
 interface SettingsContextValue {

@@ -5,6 +5,7 @@ import { isCloudMode, supabase } from '../lib/supabase'
 import { clearLocalData, ensureSeeded, exportAllData, importAllData } from '../lib/store'
 import { Button, Callout, Card, Field, Select, useToast } from '../components/ui'
 import { BriefSettings } from '../components/BriefSettings'
+import { CalendarFeeds } from '../components/CalendarFeeds'
 import { useTheme } from '../lib/theme'
 import type { UnitSystem } from '../lib/types'
 
@@ -131,6 +132,8 @@ export default function Settings() {
 
       <BriefSettings />
 
+      <CalendarFeeds />
+
       <Card title="Location" subtitle="Used for the weather panel">
         <p className="text-sm text-ink-primary">{settings.location_name}</p>
         <p className="tnum mt-1 text-xs text-ink-muted">
@@ -152,11 +155,11 @@ export default function Settings() {
         <div className="space-y-3">
           {!isCloudMode && (
             <Callout intent="info">
-              No Supabase keys are set, so the dashboard is running on a local sample dataset. Add{' '}
-              <code className="font-mono">VITE_SUPABASE_URL</code> and{' '}
+              No Supabase keys are set, so the dashboard is running on a local sample
+              dataset. Add <code className="font-mono">VITE_SUPABASE_URL</code> and{' '}
               <code className="font-mono">VITE_SUPABASE_ANON_KEY</code> to{' '}
-              <code className="font-mono">.env.local</code> to switch to your own synced data —
-              see the README.
+              <code className="font-mono">.env.local</code> to switch to your own synced
+              data — see the README.
             </Callout>
           )}
 
@@ -218,7 +221,9 @@ export default function Settings() {
         <ul className="space-y-2 text-xs text-ink-secondary">
           <li className="flex items-center justify-between">
             <span>Open the command palette</span>
-            <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono">⌘K</kbd>
+            <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono">
+              ⌘K
+            </kbd>
           </li>
           <li className="flex items-center justify-between">
             <span>Add a task from the palette</span>
@@ -226,7 +231,9 @@ export default function Settings() {
           </li>
           <li className="flex items-center justify-between">
             <span>Close a dialog</span>
-            <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono">Esc</kbd>
+            <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono">
+              Esc
+            </kbd>
           </li>
         </ul>
       </Card>

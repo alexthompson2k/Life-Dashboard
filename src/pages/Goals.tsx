@@ -43,7 +43,9 @@ export default function Goals() {
   const [editing, setEditing] = useState<Goal | null>(null)
 
   const format = (goal: Goal, value: number) =>
-    goal.unit === 'USD' ? currency(value, settings.currency) : `${fmtNumber(value, 1)} ${goal.unit}`
+    goal.unit === 'USD'
+      ? currency(value, settings.currency)
+      : `${fmtNumber(value, 1)} ${goal.unit}`
 
   const completed = goals.rows.filter((g) => progressOf(g) >= 100)
   const onTrack = goals.rows.filter((g) => {
@@ -77,7 +79,9 @@ export default function Goals() {
           label="Average progress"
           value={`${
             goals.rows.length
-              ? (goals.rows.reduce((s, g) => s + progressOf(g), 0) / goals.rows.length).toFixed(0)
+              ? (
+                  goals.rows.reduce((s, g) => s + progressOf(g), 0) / goals.rows.length
+                ).toFixed(0)
               : 0
           }%`}
         />
@@ -117,7 +121,9 @@ export default function Goals() {
                       <div className="flex items-center gap-2">
                         <span
                           className="tnum text-xs font-medium"
-                          style={{ color: done ? 'var(--status-good)' : 'var(--text-secondary)' }}
+                          style={{
+                            color: done ? 'var(--status-good)' : 'var(--text-secondary)',
+                          }}
                         >
                           {pct.toFixed(0)}%
                         </span>
@@ -128,7 +134,9 @@ export default function Goals() {
                           Update
                         </button>
                         <button
-                          onClick={() => void removeRow('goals', goal, goals.remove, 'Goal')}
+                          onClick={() =>
+                            void removeRow('goals', goal, goals.remove, 'Goal')
+                          }
                           className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                           aria-label={`Delete ${goal.title}`}
                         >

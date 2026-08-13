@@ -86,6 +86,16 @@ off a loan) read the same way as count-up goals.
 **News** — headlines from RSS feeds you choose by topic, fetched through the
 API server.
 
+**Calendar subscriptions** — add a read-only ICS feed (Google, Apple, Outlook
+all expose a secret iCal URL) in Settings and its events appear alongside your
+own. Fetched server-side, because calendar hosts send no CORS headers and a
+user-supplied URL needs checking before anything fetches it.
+
+**CSV import** — for accounts Plaid cannot reach. Columns are auto-detected,
+dates and sign conventions are configurable, and a preview shows exactly what
+will be written. Re-importing an overlapping statement skips what you already
+have.
+
 **Journal** — a one-minute daily entry with mood and energy, plus a trend chart.
 
 Throughout: light/dark themes, a ⌘K command palette (type `add call the
@@ -208,16 +218,17 @@ Check the server is configured with `curl localhost:8787/api/health`.
 | `GET  /api/plaid/accounts`   | Current balances for linked items          |
 | `POST /api/plaid/sync`       | Incremental transaction sync               |
 
-Two things to know before relying on this in production:
+Access tokens are stored in `plaid_items` — RLS enabled with no policies, so
+only the service role can read them — along with the incremental sync cursor,
+so a restart does not force a re-link and each sync fetches only what changed.
 
-- **Access tokens are stored in memory.** They are lost when the server
-  restarts, so you would re-link. `supabase/schema.sql` includes a
-  `plaid_items` table with RLS enabled and *no policies* — reachable only by
-  the service role — which is where they belong for a longer-lived setup.
-- **Sync is not yet wired into the database.** `/api/plaid/sync` returns
-  normalized accounts and transactions, but persisting them (and reconciling
-  against manual rows) is left as the next step, since it depends on how you
-  want duplicates handled.
+Sync is idempotent: accounts upsert on `plaid_account_id` and transactions on
+`plaid_transaction_id`, both unique per user. Running it twice changes nothing.
+Transactions Plaid later removes (pending charges that never settled) are
+deleted to match.
+
+Every Plaid route requires a signed-in user; the server derives the account
+from the Supabase JWT and never from the request body.
 
 Sign conventions the server normalizes to: **amount > 0 is money in, < 0 is
 money out** (Plaid uses the opposite), and liability balances are stored as a

@@ -178,7 +178,10 @@ export default function Fitness() {
                   .sort((a, b) => b.date.localeCompare(a.date))
                   .slice(0, 12)
                   .map((w) => (
-                    <li key={w.id} className="group flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                    <li
+                      key={w.id}
+                      className="group flex items-center justify-between py-2 first:pt-0 last:pb-0"
+                    >
                       <span className="text-xs text-ink-secondary">
                         {new Date(w.date + 'T00:00:00').toLocaleDateString('en-US', {
                           weekday: 'short',
@@ -191,7 +194,9 @@ export default function Fitness() {
                           {formatWeight(w.weight_kg, units)}
                         </span>
                         <button
-                          onClick={() => void removeRow('weights', w, weights.remove, 'Weigh-in')}
+                          onClick={() =>
+                            void removeRow('weights', w, weights.remove, 'Weigh-in')
+                          }
                           className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                           aria-label="Delete weigh-in"
                         >
@@ -363,7 +368,9 @@ function SessionsTab({
     return map
   }, [sets])
 
-  const sorted = [...workouts.rows].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20)
+  const sorted = [...workouts.rows]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 20)
 
   if (sorted.length === 0) {
     return (
@@ -420,13 +427,19 @@ function SessionsTab({
           >
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[...byExercise.entries()].map(([exercise, exerciseSets]) => (
-                <div key={exercise} className="rounded-xl border border-line bg-surface-2 p-3">
+                <div
+                  key={exercise}
+                  className="rounded-xl border border-line bg-surface-2 p-3"
+                >
                   <p className="mb-1.5 text-xs font-medium text-ink-primary">{exercise}</p>
                   <ul className="space-y-0.5">
                     {exerciseSets
                       .sort((a, b) => a.set_index - b.set_index)
                       .map((s) => (
-                        <li key={s.id} className="tnum flex justify-between text-[11px] text-ink-secondary">
+                        <li
+                          key={s.id}
+                          className="tnum flex justify-between text-[11px] text-ink-secondary"
+                        >
                           <span>Set {s.set_index}</span>
                           <span>
                             {kgToDisplay(s.weight_kg, units).toFixed(1)} {unit} × {s.reps}
@@ -537,7 +550,12 @@ function LogWorkoutModal({
   open: boolean
   onClose: () => void
   onSave: (
-    workout: { date: string; name: string; duration_min: number | null; notes: string | null },
+    workout: {
+      date: string
+      name: string
+      duration_min: number | null
+      notes: string | null
+    },
     sets: Array<Omit<WorkoutSet, 'id' | 'workout_id'>>,
   ) => Promise<void>
 }) {
@@ -637,7 +655,10 @@ function LogWorkoutModal({
         <p className="label">Exercises</p>
         <div className="space-y-2">
           {drafts.map((draft, i) => (
-            <div key={i} className="grid grid-cols-[1fr_4rem_5rem_4rem_2rem] items-center gap-2">
+            <div
+              key={i}
+              className="grid grid-cols-[1fr_4rem_5rem_4rem_2rem] items-center gap-2"
+            >
               <Select
                 value={draft.exercise}
                 onChange={(e) => updateDraft(i, { exercise: e.target.value })}

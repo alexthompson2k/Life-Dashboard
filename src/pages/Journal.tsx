@@ -58,9 +58,7 @@ export default function Journal() {
   )
 
   const last30 = sorted.slice(0, 30)
-  const avgMood = last30.length
-    ? last30.reduce((s, r) => s + r.mood, 0) / last30.length
-    : 0
+  const avgMood = last30.length ? last30.reduce((s, r) => s + r.mood, 0) / last30.length : 0
   const avgEnergy = last30.length
     ? last30.reduce((s, r) => s + r.energy, 0) / last30.length
     : 0
@@ -95,7 +93,9 @@ export default function Journal() {
           label="Average mood (30d)"
           value={avgMood ? avgMood.toFixed(1) : '—'}
           hint="Out of 5"
-          intent={avgMood >= 3.5 ? 'good' : avgMood > 0 && avgMood < 2.5 ? 'bad' : 'neutral'}
+          intent={
+            avgMood >= 3.5 ? 'good' : avgMood > 0 && avgMood < 2.5 ? 'bad' : 'neutral'
+          }
         />
         <Stat
           label="Average energy (30d)"
@@ -169,7 +169,10 @@ export default function Journal() {
             />
           </Field>
 
-          <Field label="One good thing" hint="Optional, but it changes the tone of the entry">
+          <Field
+            label="One good thing"
+            hint="Optional, but it changes the tone of the entry"
+          >
             <input
               className="input"
               value={gratitude}
@@ -222,7 +225,9 @@ export default function Journal() {
                       })}
                       <span className="text-ink-muted">energy {r.energy}/5</span>
                     </p>
-                    <p className="mt-1 text-sm leading-relaxed text-ink-primary">{r.entry}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-primary">
+                      {r.entry}
+                    </p>
                     {r.gratitude && (
                       <p className="mt-1 text-xs italic text-ink-secondary">
                         Grateful for: {r.gratitude}

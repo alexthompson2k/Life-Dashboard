@@ -182,13 +182,16 @@ create table if not exists public.settings (
   -- user's local hour rather than UTC.
   brief_enabled boolean not null default false,
   brief_time text not null default '07:00',
-  timezone text not null default 'UTC'
+  timezone text not null default 'UTC',
+  -- Subscribed ICS calendar feeds: [{ "label": "Work", "url": "https://..." }]
+  calendar_feeds jsonb not null default '[]'::jsonb
 );
 
 -- Re-running this file against an existing database picks up the brief columns.
 alter table public.settings add column if not exists brief_enabled boolean not null default false;
 alter table public.settings add column if not exists brief_time text not null default '07:00';
 alter table public.settings add column if not exists timezone text not null default 'UTC';
+alter table public.settings add column if not exists calendar_feeds jsonb not null default '[]'::jsonb;
 
 -- ---------------------------------------------------------------------------
 -- Plaid item storage.
@@ -204,8 +207,15 @@ create table if not exists public.plaid_items (
   item_id text not null unique,
   access_token text not null,
   institution_name text,
+  -- Plaid's incremental sync cursor. Persisting it means the next sync fetches
+  -- only what changed rather than re-downloading the whole history.
+  sync_cursor text,
+  last_synced_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.plaid_items add column if not exists sync_cursor text;
+alter table public.plaid_items add column if not exists last_synced_at timestamptz;
 
 alter table public.plaid_items enable row level security;
 -- Intentionally no policies: service-role access only.

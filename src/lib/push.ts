@@ -1,5 +1,4 @@
-import { apiUrl } from './api'
-import { supabase } from './supabase'
+import { apiFetch, apiUrl } from './api'
 
 /**
  * Browser side of the daily brief.
@@ -10,11 +9,7 @@ import { supabase } from './supabase'
  */
 
 export type PushSupport =
-  | 'ready'
-  | 'unsupported'
-  | 'needs-install'
-  | 'needs-cloud'
-  | 'server-disabled'
+  'ready' | 'unsupported' | 'needs-install' | 'needs-cloud' | 'server-disabled'
 
 export interface PushConfig {
   enabled: boolean
@@ -40,7 +35,8 @@ export async function fetchPushConfig(): Promise<PushConfig> {
   return (await res.json()) as PushConfig
 }
 
-export function localSupport(): Exclude<PushSupport, 'server-disabled' | 'needs-cloud'> | 'ready' {
+export function localSupport():
+  Exclude<PushSupport, 'server-disabled' | 'needs-cloud'> | 'ready' {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return isIOS() && !isStandalone() ? 'needs-install' : 'unsupported'
   }
@@ -53,13 +49,6 @@ function urlBase64ToUint8Array(base64: string) {
   const normalized = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = atob(normalized)
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
-}
-
-async function authHeader(): Promise<Record<string, string>> {
-  const { data } = (await supabase?.auth.getSession()) ?? { data: { session: null } }
-  const token = data.session?.access_token
-  if (!token) throw new Error('You need to be signed in to enable the daily brief.')
-  return { Authorization: `Bearer ${token}` }
 }
 
 export async function currentSubscription(): Promise<PushSubscription | null> {
@@ -87,10 +76,9 @@ export async function subscribe(publicKey: string): Promise<void> {
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     }))
 
-  const res = await fetch(apiUrl('/api/push/subscribe'), {
+  const res = await apiFetch('/api/push/subscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ subscription: subscription.toJSON() }),
+    body: { subscription: subscription.toJSON() },
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
@@ -102,10 +90,9 @@ export async function unsubscribe(): Promise<void> {
   const subscription = await currentSubscription()
   if (!subscription) return
 
-  await fetch(apiUrl('/api/push/unsubscribe'), {
+  await apiFetch('/api/push/unsubscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ endpoint: subscription.endpoint }),
+    body: { endpoint: subscription.endpoint },
   }).catch(() => {
     /* Losing the server record is not worth blocking the local unsubscribe. */
   })
@@ -114,10 +101,7 @@ export async function unsubscribe(): Promise<void> {
 }
 
 export async function sendTestBrief(): Promise<string> {
-  const res = await fetch(apiUrl('/api/push/test'), {
-    method: 'POST',
-    headers: await authHeader(),
-  })
+  const res = await apiFetch('/api/push/test', { method: 'POST' })
   const body = (await res.json().catch(() => ({}))) as {
     error?: string
     preview?: { title: string; body: string }

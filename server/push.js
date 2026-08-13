@@ -77,7 +77,11 @@ export async function gatherBriefInput(userId, now = new Date()) {
   const [settings, tasks, events, budgets, transactions, habits, habitLogs, weights] =
     await Promise.all([
       db.from('settings').select('*').eq('user_id', userId).maybeSingle(),
-      db.from('tasks').select('title,due_date,completed').eq('user_id', userId).eq('completed', false),
+      db
+        .from('tasks')
+        .select('title,due_date,completed')
+        .eq('user_id', userId)
+        .eq('completed', false),
       db
         .from('events')
         .select('title,start_at')
@@ -93,7 +97,12 @@ export async function gatherBriefInput(userId, now = new Date()) {
         .lt('amount', 0),
       db.from('habits').select('id,name').eq('user_id', userId).eq('archived', false),
       db.from('habit_logs').select('habit_id').eq('user_id', userId).eq('date', today),
-      db.from('weights').select('date').eq('user_id', userId).order('date', { ascending: false }).limit(1),
+      db
+        .from('weights')
+        .select('date')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(1),
     ])
 
   const spendByCategory = new Map()
@@ -128,11 +137,27 @@ export async function gatherBriefInput(userId, now = new Date()) {
 }
 
 const WMO_LABELS = {
-  0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
-  45: 'Fog', 48: 'Fog', 51: 'Drizzle', 53: 'Drizzle', 55: 'Drizzle',
-  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Snow', 73: 'Snow',
-  75: 'Heavy snow', 80: 'Showers', 81: 'Showers', 82: 'Heavy showers',
-  95: 'Thunderstorms', 96: 'Thunderstorms', 99: 'Thunderstorms',
+  0: 'Clear',
+  1: 'Mainly clear',
+  2: 'Partly cloudy',
+  3: 'Overcast',
+  45: 'Fog',
+  48: 'Fog',
+  51: 'Drizzle',
+  53: 'Drizzle',
+  55: 'Drizzle',
+  61: 'Light rain',
+  63: 'Rain',
+  65: 'Heavy rain',
+  71: 'Snow',
+  73: 'Snow',
+  75: 'Heavy snow',
+  80: 'Showers',
+  81: 'Showers',
+  82: 'Heavy showers',
+  95: 'Thunderstorms',
+  96: 'Thunderstorms',
+  99: 'Thunderstorms',
 }
 
 async function fetchWeather(latitude, longitude) {
@@ -244,9 +269,7 @@ export function startBriefScheduler() {
     for (const user of users) {
       try {
         const zone = user.timezone || 'UTC'
-        const localNow = new Date(
-          new Date().toLocaleString('en-US', { timeZone: zone }),
-        )
+        const localNow = new Date(new Date().toLocaleString('en-US', { timeZone: zone }))
         const [hour, minute] = (user.brief_time || '07:00').split(':').map(Number)
 
         // Fire when the scheduled minute falls inside this 15-minute tick.

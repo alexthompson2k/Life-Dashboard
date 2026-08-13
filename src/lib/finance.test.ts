@@ -14,7 +14,9 @@ import {
 } from './finance'
 import type { Account, Budget, Transaction } from './types'
 
-function account(over: Partial<Account> & Pick<Account, 'id' | 'type' | 'balance'>): Account {
+function account(
+  over: Partial<Account> & Pick<Account, 'id' | 'type' | 'balance'>,
+): Account {
   return {
     name: over.id,
     institution: null,
@@ -92,7 +94,11 @@ describe('spend and income', () => {
   })
 
   it('ignores inflows when totalling spend', () => {
-    expect(spendOf([txn({ id: 'refund', date: '2026-08-01', amount: 50, category: 'Shopping' })])).toBe(0)
+    expect(
+      spendOf([
+        txn({ id: 'refund', date: '2026-08-01', amount: 50, category: 'Shopping' }),
+      ]),
+    ).toBe(0)
   })
 })
 

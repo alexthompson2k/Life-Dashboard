@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Building2, Link2, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Building2, Link2, Plus, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { useTable } from '../lib/store'
 import { useSettings } from '../lib/settings'
 import { useToast } from '../components/ui'
@@ -31,8 +31,10 @@ import {
   totalLiabilities,
 } from '../lib/finance'
 import { currency, monthLabel, monthLabelLong, monthKey, toISODate } from '../lib/format'
-import { apiUrl } from '../lib/api'
+import { isCloudMode } from '../lib/supabase'
+import { linkBank, listItems, syncNow, unlink, type LinkedItem } from '../lib/plaid'
 import { useUndoableDelete } from '../lib/undo'
+import { CsvImportModal } from '../components/CsvImportModal'
 import type { Account, AccountType, Transaction } from '../lib/types'
 
 const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
@@ -63,7 +65,10 @@ export default function Financials() {
     () => inMonth(transactions.rows, thisMonth),
     [transactions.rows, thisMonth],
   )
-  const summaries = useMemo(() => monthlySummaries(transactions.rows, 6), [transactions.rows])
+  const summaries = useMemo(
+    () => monthlySummaries(transactions.rows, 6),
+    [transactions.rows],
+  )
   const current = summaries[summaries.length - 1]
   const previous = summaries[summaries.length - 2]
 
@@ -72,10 +77,7 @@ export default function Financials() {
     () => netWorthSeries(accounts.rows, transactions.rows, 6),
     [accounts.rows, transactions.rows],
   )
-  const worthChange =
-    worthSeries.length > 1
-      ? worth - worthSeries[0].value
-      : 0
+  const worthChange = worthSeries.length > 1 ? worth - worthSeries[0].value : 0
 
   const runway = runwayMonths(accounts.rows, summaries)
 
@@ -182,10 +184,7 @@ export default function Financials() {
             />
 
             <Card title="Budget health" subtitle={monthLabelLong(thisMonth)}>
-              <BudgetList
-                statuses={budgetStatuses(budgets.rows, monthTxns)}
-                format={fmt}
-              />
+              <BudgetList statuses={budgetStatuses(budgets.rows, monthTxns)} format={fmt} />
             </Card>
           </div>
         </>
@@ -203,7 +202,9 @@ export default function Financials() {
         <BudgetsTab budgets={budgets} monthTxns={monthTxns} format={fmt} />
       )}
 
-      {tab === 'accounts' && <AccountsTab accounts={accounts} format={fmt} />}
+      {tab === 'accounts' && (
+        <AccountsTab accounts={accounts} transactions={transactions} format={fmt} />
+      )}
     </div>
   )
 }
@@ -233,8 +234,7 @@ function BudgetList({
           <div className="mb-1.5 flex items-baseline justify-between gap-2 text-xs">
             <span className="font-medium text-ink-primary">{b.category}</span>
             <span className="tnum text-ink-secondary">
-              {format(b.spent)}{' '}
-              <span className="text-ink-muted">of {format(b.limit)}</span>
+              {format(b.spent)} <span className="text-ink-muted">of {format(b.limit)}</span>
             </span>
           </div>
           <ProgressBar value={b.spent} max={b.limit} state={b.state} />
@@ -278,8 +278,7 @@ function TransactionsTab({
   const [adding, setAdding] = useState(false)
 
   const months = useMemo(
-    () =>
-      [...new Set(transactions.rows.map((t) => monthKey(t.date)))].sort().reverse(),
+    () => [...new Set(transactions.rows.map((t) => monthKey(t.date)))].sort().reverse(),
     [transactions.rows],
   )
 
@@ -292,7 +291,9 @@ function TransactionsTab({
       .sort((a, b) => b.date.localeCompare(a.date))
   }, [transactions.rows, month, category, query])
 
-  const totalOut = filtered.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const totalOut = filtered
+    .filter((t) => t.amount < 0)
+    .reduce((s, t) => s + Math.abs(t.amount), 0)
   const totalIn = filtered.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const accountName = (id: string | null) =>
     accounts.find((a) => a.id === id)?.name ?? 'Unlinked'
@@ -353,11 +354,21 @@ function TransactionsTab({
             <table className="w-full min-w-[38rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-xs text-ink-secondary">
-                  <th scope="col" className="px-2 py-2 text-left font-medium">Date</th>
-                  <th scope="col" className="px-2 py-2 text-left font-medium">Description</th>
-                  <th scope="col" className="px-2 py-2 text-left font-medium">Category</th>
-                  <th scope="col" className="px-2 py-2 text-left font-medium">Account</th>
-                  <th scope="col" className="px-2 py-2 text-right font-medium">Amount</th>
+                  <th scope="col" className="px-2 py-2 text-left font-medium">
+                    Date
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-left font-medium">
+                    Description
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-left font-medium">
+                    Category
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-left font-medium">
+                    Account
+                  </th>
+                  <th scope="col" className="px-2 py-2 text-right font-medium">
+                    Amount
+                  </th>
                   <th scope="col" className="px-2 py-2" />
                 </tr>
               </thead>
@@ -381,10 +392,14 @@ function TransactionsTab({
                     <td className="px-2 py-2">
                       <span className="chip">{t.category}</span>
                     </td>
-                    <td className="px-2 py-2 text-ink-secondary">{accountName(t.account_id)}</td>
+                    <td className="px-2 py-2 text-ink-secondary">
+                      {accountName(t.account_id)}
+                    </td>
                     <td
                       className="tnum whitespace-nowrap px-2 py-2 text-right font-medium"
-                      style={{ color: t.amount > 0 ? 'var(--status-good)' : 'var(--text-primary)' }}
+                      style={{
+                        color: t.amount > 0 ? 'var(--status-good)' : 'var(--text-primary)',
+                      }}
                     >
                       {t.amount > 0 ? '+' : '−'}
                       {format(Math.abs(t.amount))}
@@ -392,7 +407,12 @@ function TransactionsTab({
                     <td className="px-2 py-2 text-right">
                       <button
                         onClick={() =>
-                          void removeRow('transactions', t, transactions.remove, 'Transaction')
+                          void removeRow(
+                            'transactions',
+                            t,
+                            transactions.remove,
+                            'Transaction',
+                          )
                         }
                         className="btn btn-ghost !p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                         aria-label={`Delete ${t.name}`}
@@ -406,7 +426,8 @@ function TransactionsTab({
             </table>
             {filtered.length > 200 && (
               <p className="px-2 pt-3 text-xs text-ink-muted">
-                Showing the 200 most recent of {filtered.length}. Narrow the filters to see more.
+                Showing the 200 most recent of {filtered.length}. Narrow the filters to see
+                more.
               </p>
             )}
           </div>
@@ -586,7 +607,10 @@ function BudgetsTab({
         </Card>
       </div>
 
-      <Card title="Set a budget" subtitle="Saving over an existing category replaces its limit">
+      <Card
+        title="Set a budget"
+        subtitle="Saving over an existing category replaces its limit"
+      >
         <div className="space-y-3">
           <Field label="Category">
             <Select
@@ -619,9 +643,13 @@ function BudgetsTab({
                   <li key={b.id} className="flex items-center justify-between text-xs">
                     <span className="text-ink-secondary">{b.category}</span>
                     <span className="flex items-center gap-2">
-                      <span className="tnum text-ink-primary">{format(b.monthly_limit)}</span>
+                      <span className="tnum text-ink-primary">
+                        {format(b.monthly_limit)}
+                      </span>
                       <button
-                        onClick={() => void removeRow('budgets', b, budgets.remove, 'Budget')}
+                        onClick={() =>
+                          void removeRow('budgets', b, budgets.remove, 'Budget')
+                        }
                         className="text-ink-muted hover:text-ink-primary"
                         aria-label={`Remove ${b.category} budget`}
                       >
@@ -643,64 +671,72 @@ function BudgetsTab({
 
 function AccountsTab({
   accounts,
+  transactions,
   format,
 }: {
   accounts: ReturnType<typeof useTable<'accounts'>>
+  transactions: ReturnType<typeof useTable<'transactions'>>
   format: (v: number) => string
 }) {
   const toast = useToast()
+  const { removeRow } = useUndoableDelete()
   const [adding, setAdding] = useState(false)
-  const [linking, setLinking] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [busy, setBusy] = useState<'link' | 'sync' | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
+  const [items, setItems] = useState<LinkedItem[]>([])
 
   const assets = accounts.rows.filter((a) => !isLiability(a))
   const liabilities = accounts.rows.filter(isLiability)
 
-  /**
-   * Plaid Link needs a link token minted server-side. If the API server is not
-   * running or has no Plaid keys, say so plainly instead of failing silently.
-   */
-  const startPlaidLink = async () => {
-    setLinking(true)
+  const loadItems = useCallback(async () => {
+    if (!isCloudMode) return
+    try {
+      setItems(await listItems())
+    } catch {
+      // Not being able to list linked banks should not break the page.
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadItems()
+  }, [loadItems])
+
+  const startLink = async () => {
+    setBusy('link')
     setLinkError(null)
     try {
-      const res = await fetch(apiUrl('/api/plaid/link-token'), { method: 'POST' })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}) as { error?: string })
-        throw new Error(body.error ?? `Link token request failed (${res.status})`)
+      const result = await linkBank()
+      if (result) {
+        toast.push(`Linked. Imported ${result.added} transactions.`)
+        accounts.refresh()
+        transactions.refresh()
+        await loadItems()
       }
-      const { link_token } = (await res.json()) as { link_token: string }
-
-      const plaid = (window as unknown as { Plaid?: PlaidFactory }).Plaid
-      if (!plaid) {
-        throw new Error(
-          'The Plaid Link script has not loaded. Add your Plaid keys and reload — see README.',
-        )
-      }
-
-      plaid
-        .create({
-          token: link_token,
-          onSuccess: async (publicToken) => {
-            const exchange = await fetch(apiUrl('/api/plaid/exchange'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ public_token: publicToken }),
-            })
-            if (!exchange.ok) {
-              toast.push('Could not finish linking the account', 'error')
-              return
-            }
-            toast.push('Bank linked. Syncing accounts…')
-            accounts.refresh()
-          },
-          onExit: () => setLinking(false),
-        })
-        .open()
     } catch (err) {
       setLinkError((err as Error).message)
     } finally {
-      setLinking(false)
+      setBusy(null)
+    }
+  }
+
+  const sync = async () => {
+    setBusy('sync')
+    setLinkError(null)
+    try {
+      const result = await syncNow()
+      accounts.refresh()
+      transactions.refresh()
+      await loadItems()
+      toast.push(
+        result.added || result.modified || result.removed
+          ? `Synced: ${result.added} new, ${result.modified} updated, ${result.removed} removed.`
+          : 'Already up to date.',
+      )
+    } catch (err) {
+      setLinkError((err as Error).message)
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -717,29 +753,92 @@ function AccountsTab({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => void startPlaidLink()} disabled={linking}>
-          <Link2 size={15} /> {linking ? 'Opening Plaid…' : 'Link a bank'}
+        <Button variant="primary" onClick={() => void startLink()} disabled={busy !== null}>
+          <Link2 size={15} /> {busy === 'link' ? 'Opening Plaid…' : 'Link a bank'}
+        </Button>
+        {items.length > 0 && (
+          <Button onClick={() => void sync()} disabled={busy !== null}>
+            <RefreshCw size={15} className={busy === 'sync' ? 'animate-spin' : ''} />
+            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+          </Button>
+        )}
+        <Button onClick={() => setImporting(true)}>
+          <Upload size={15} /> Import CSV
         </Button>
         <Button onClick={() => setAdding(true)}>
           <Plus size={15} /> Add manually
         </Button>
-        <Button onClick={() => accounts.refresh()}>
-          <RefreshCw size={15} /> Refresh
-        </Button>
       </div>
+
+      {!isCloudMode && (
+        <Callout intent="info">
+          Bank linking needs cloud mode — synced accounts are written to your database by
+          the server. CSV import and manual accounts work either way.
+        </Callout>
+      )}
 
       {linkError && (
         <Callout intent="warning">
-          {linkError} You can keep using manual accounts in the meantime.
+          {linkError} Manual accounts and CSV import still work in the meantime.
         </Callout>
+      )}
+
+      {items.length > 0 && (
+        <Card title="Linked banks" subtitle={`${items.length} connected`}>
+          <ul className="divide-y divide-line">
+            {items.map((item) => (
+              <li
+                key={item.item_id}
+                className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
+              >
+                <div>
+                  <p className="text-sm text-ink-primary">
+                    {item.institution_name ?? 'Linked bank'}
+                  </p>
+                  <p className="text-[11px] text-ink-muted">
+                    {item.last_synced_at
+                      ? `Last synced ${new Date(item.last_synced_at).toLocaleString()}`
+                      : 'Not synced yet'}
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      await unlink(item.item_id)
+                      await loadItems()
+                      toast.push('Bank unlinked. Existing transactions were kept.')
+                    } catch (err) {
+                      toast.push((err as Error).message, 'error')
+                    }
+                  }}
+                  className="btn btn-ghost !px-2 !py-1 text-xs"
+                >
+                  Unlink
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Assets" subtitle={`${assets.length} accounts`}>
-          <AccountList accounts={assets} format={format} onDelete={accounts.remove} />
+          <AccountList
+            accounts={assets}
+            format={format}
+            onDelete={(account) =>
+              void removeRow('accounts', account, accounts.remove, 'Account')
+            }
+          />
         </Card>
         <Card title="Liabilities" subtitle={`${liabilities.length} accounts`}>
-          <AccountList accounts={liabilities} format={format} onDelete={accounts.remove} />
+          <AccountList
+            accounts={liabilities}
+            format={format}
+            onDelete={(account) =>
+              void removeRow('accounts', account, accounts.remove, 'Account')
+            }
+          />
         </Card>
       </div>
 
@@ -751,19 +850,19 @@ function AccountsTab({
           toast.push('Account added')
         }}
       />
+
+      <CsvImportModal
+        open={importing}
+        onClose={() => setImporting(false)}
+        accounts={accounts.rows}
+        existing={transactions.rows}
+        onImport={async (rows) => {
+          for (const row of rows) await transactions.insert(row)
+          transactions.refresh()
+        }}
+      />
     </div>
   )
-}
-
-interface PlaidHandler {
-  open: () => void
-}
-interface PlaidFactory {
-  create: (config: {
-    token: string
-    onSuccess: (publicToken: string) => void | Promise<void>
-    onExit: () => void
-  }) => PlaidHandler
 }
 
 function AccountList({
@@ -773,7 +872,7 @@ function AccountList({
 }: {
   accounts: Account[]
   format: (v: number) => string
-  onDelete: (id: string) => Promise<void>
+  onDelete: (account: Account) => void
 }) {
   if (accounts.length === 0) {
     return <EmptyState icon={<Building2 size={20} />} title="No accounts here yet" />
@@ -781,7 +880,10 @@ function AccountList({
   return (
     <ul className="divide-y divide-line">
       {accounts.map((a) => (
-        <li key={a.id} className="group flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+        <li
+          key={a.id}
+          className="group flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+        >
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-ink-primary">{a.name}</p>
             <p className="truncate text-xs text-ink-secondary">
@@ -791,9 +893,11 @@ function AccountList({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="tnum text-sm font-medium text-ink-primary">{format(a.balance)}</span>
+            <span className="tnum text-sm font-medium text-ink-primary">
+              {format(a.balance)}
+            </span>
             <button
-              onClick={() => void onDelete(a.id)}
+              onClick={() => onDelete(a)}
               className="btn btn-ghost !p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
               aria-label={`Remove ${a.name}`}
             >
@@ -875,7 +979,9 @@ function AddAccountModal({
         <Field
           label="Balance"
           hint={
-            type === 'credit' || type === 'loan' ? 'Enter the amount owed as a positive number.' : undefined
+            type === 'credit' || type === 'loan'
+              ? 'Enter the amount owed as a positive number.'
+              : undefined
           }
         >
           <input

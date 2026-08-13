@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   Check,
@@ -13,6 +13,7 @@ import { useTable } from '../lib/store'
 import { useSettings } from '../lib/settings'
 import {
   Button,
+  Callout,
   Card,
   EmptyState,
   Field,
@@ -25,10 +26,18 @@ import {
 import { usePalette, slotColor } from '../components/charts'
 import { fromISODate, relativeDay, toISODate } from '../lib/format'
 import { useUndoableDelete } from '../lib/undo'
+import { fetchAllFeeds, type RemoteEvent } from '../lib/calendar'
 import type { CalendarEvent, Priority, Recurrence, Task } from '../lib/types'
 
+/** A local event or one from a subscribed feed; feed events cannot be edited. */
+type DisplayEvent = CalendarEvent & { readOnly: boolean; source?: string }
+
 const PRIORITY_SLOT: Record<Priority, number> = { high: 8, medium: 4, low: 3 }
-const PRIORITY_LABEL: Record<Priority, string> = { high: 'High', medium: 'Medium', low: 'Low' }
+const PRIORITY_LABEL: Record<Priority, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+}
 
 export default function TasksPage() {
   const tasks = useTable('tasks')
@@ -121,7 +130,8 @@ function ListView({ tasks }: { tasks: ReturnType<typeof useTable<'tasks'>> }) {
     return tasks.rows
       .filter((t) => {
         if (filter === 'open') return !t.completed
-        if (filter === 'today') return !t.completed && t.due_date !== null && t.due_date <= today
+        if (filter === 'today')
+          return !t.completed && t.due_date !== null && t.due_date <= today
         return true
       })
       .filter((t) => (list === 'all' ? true : t.list === list))
@@ -151,7 +161,8 @@ function ListView({ tasks }: { tasks: ReturnType<typeof useTable<'tasks'>> }) {
     }
     // Overdue first, completed last; everything else keeps insertion order.
     return [...groups.entries()].sort(([a], [b]) => {
-      const rank = (k: string) => (k === 'Overdue' ? -1 : k === 'Completed' ? 2 : k === 'Someday' ? 1 : 0)
+      const rank = (k: string) =>
+        k === 'Overdue' ? -1 : k === 'Completed' ? 2 : k === 'Someday' ? 1 : 0
       return rank(a) - rank(b)
     })
   }, [visible, today])
@@ -263,7 +274,9 @@ function TaskRow({
           borderColor: task.completed ? 'var(--status-good)' : 'var(--border)',
           background: task.completed ? 'var(--status-good)' : 'transparent',
         }}
-        aria-label={task.completed ? `Mark ${task.title} as not done` : `Complete ${task.title}`}
+        aria-label={
+          task.completed ? `Mark ${task.title} as not done` : `Complete ${task.title}`
+        }
       >
         {task.completed && <Check size={12} className="text-white" />}
       </button>
@@ -281,7 +294,9 @@ function TaskRow({
             <span
               aria-hidden
               className="inline-block h-1.5 w-1.5 rounded-full"
-              style={{ background: slotColor(palette, PRIORITY_SLOT[task.priority]) }}
+              style={{
+                background: slotColor(palette, PRIORITY_SLOT[task.priority]),
+              }}
             />
             {PRIORITY_LABEL[task.priority]}
           </span>
@@ -293,7 +308,9 @@ function TaskRow({
               {task.due_time && ` · ${task.due_time}`}
             </span>
           )}
-          {task.recurrence !== 'none' && <span className="chip !py-0.5">{task.recurrence}</span>}
+          {task.recurrence !== 'none' && (
+            <span className="chip !py-0.5">{task.recurrence}</span>
+          )}
         </div>
         {task.notes && <p className="mt-1 text-xs text-ink-muted">{task.notes}</p>}
       </div>
@@ -344,6 +361,34 @@ function CalendarView({
   const { settings } = useSettings()
   const palette = usePalette()
   const { removeRow } = useUndoableDelete()
+
+  /*
+   * Subscribed ICS feeds are merged in read-only. They are kept separate from
+   * the `events` table rather than copied into it: the feed is the source of
+   * truth, so importing would immediately drift.
+   */
+  const [remote, setRemote] = useState<RemoteEvent[]>([])
+  const [feedErrors, setFeedErrors] = useState<Array<{ label: string; message: string }>>(
+    [],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const feeds = settings.calendar_feeds ?? []
+    if (feeds.length === 0) {
+      setRemote([])
+      setFeedErrors([])
+      return
+    }
+    void fetchAllFeeds(feeds).then((result) => {
+      if (cancelled) return
+      setRemote(result.events)
+      setFeedErrors(result.failed)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [settings.calendar_feeds])
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
@@ -351,7 +396,10 @@ function CalendarView({
   const [selected, setSelected] = useState(toISODate())
 
   const weekStart = settings.week_starts_on
-  const monthName = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const monthName = cursor.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
 
   const grid = useMemo(() => {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
@@ -380,16 +428,36 @@ function CalendarView({
   }, [tasks])
 
   const eventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>()
-    for (const e of events.rows) {
-      const key = e.start_at.slice(0, 10)
+    const map = new Map<string, DisplayEvent[]>()
+
+    const add = (event: DisplayEvent) => {
+      // Group by local date, not the UTC prefix of the timestamp — an evening
+      // event would otherwise land on the following day west of UTC.
+      const key = toISODate(new Date(event.start_at))
       const list = map.get(key) ?? []
-      list.push(e)
+      list.push(event)
       map.set(key, list)
     }
-    for (const list of map.values()) list.sort((a, b) => a.start_at.localeCompare(b.start_at))
+
+    for (const e of events.rows) add({ ...e, readOnly: false })
+    for (const e of remote) {
+      add({
+        id: e.id,
+        title: e.title,
+        start_at: e.start_at,
+        end_at: e.end_at,
+        all_day: e.all_day,
+        location: e.location,
+        color_slot: 7,
+        readOnly: true,
+        source: e.source,
+      })
+    }
+
+    for (const list of map.values())
+      list.sort((a, b) => a.start_at.localeCompare(b.start_at))
     return map
-  }, [events.rows])
+  }, [events.rows, remote])
 
   const dayNames = useMemo(() => {
     const base = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -401,176 +469,217 @@ function CalendarView({
   const selectedEvents = eventsByDate.get(selected) ?? []
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <Card
-        title={monthName}
-        action={
-          <div className="flex items-center gap-1">
-            <button
-              className="btn btn-ghost !p-1.5"
-              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft size={15} />
-            </button>
-            <button
-              className="btn btn-ghost !px-2 !py-1 text-xs"
-              onClick={() => {
-                const d = new Date()
-                setCursor(new Date(d.getFullYear(), d.getMonth(), 1))
-                setSelected(toISODate())
-              }}
-            >
-              Today
-            </button>
-            <button
-              className="btn btn-ghost !p-1.5"
-              onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        }
-        bodyClassName="!p-3"
-      >
-        <div className="grid grid-cols-7 gap-1">
-          {dayNames.map((d) => (
-            <div key={d} className="pb-1 text-center text-[10px] font-medium uppercase tracking-wide text-ink-muted">
-              {d}
-            </div>
-          ))}
+    <div className="space-y-4">
+      {feedErrors.length > 0 && (
+        <Callout intent="warning">
+          Could not read {feedErrors.map((f) => f.label).join(', ')}. Everything else is
+          shown.
+        </Callout>
+      )}
 
-          {grid.map((iso) => {
-            const inMonth = fromISODate(iso).getMonth() === cursor.getMonth()
-            const dayTasks = tasksByDate.get(iso) ?? []
-            const dayEvents = eventsByDate.get(iso) ?? []
-            const openCount = dayTasks.filter((t) => !t.completed).length
-            const isToday = iso === today
-            const isSelected = iso === selected
-
-            return (
+      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+        <Card
+          title={monthName}
+          action={
+            <div className="flex items-center gap-1">
               <button
-                key={iso}
-                onClick={() => setSelected(iso)}
-                className={`min-h-[4.5rem] rounded-lg border p-1.5 text-left transition-colors ${
-                  isSelected ? 'border-transparent bg-surface-3' : 'border-line hover:bg-surface-2'
-                } ${inMonth ? '' : 'opacity-40'}`}
-                style={isSelected ? { boxShadow: `inset 0 0 0 2px var(--accent)` } : undefined}
-                aria-label={`${iso}, ${openCount} tasks, ${dayEvents.length} events`}
-                aria-pressed={isSelected}
+                className="btn btn-ghost !p-1.5"
+                onClick={() =>
+                  setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))
+                }
+                aria-label="Previous month"
               >
-                <span
-                  className={`tnum inline-grid h-5 w-5 place-items-center rounded-full text-[11px] font-medium ${
-                    isToday ? 'text-white' : 'text-ink-secondary'
-                  }`}
-                  style={isToday ? { background: 'var(--accent)' } : undefined}
-                >
-                  {fromISODate(iso).getDate()}
-                </span>
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                className="btn btn-ghost !px-2 !py-1 text-xs"
+                onClick={() => {
+                  const d = new Date()
+                  setCursor(new Date(d.getFullYear(), d.getMonth(), 1))
+                  setSelected(toISODate())
+                }}
+              >
+                Today
+              </button>
+              <button
+                className="btn btn-ghost !p-1.5"
+                onClick={() =>
+                  setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))
+                }
+                aria-label="Next month"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          }
+          bodyClassName="!p-3"
+        >
+          <div className="grid grid-cols-7 gap-1">
+            {dayNames.map((d) => (
+              <div
+                key={d}
+                className="pb-1 text-center text-[10px] font-medium uppercase tracking-wide text-ink-muted"
+              >
+                {d}
+              </div>
+            ))}
 
-                <div className="mt-1 space-y-0.5">
-                  {dayEvents.slice(0, 2).map((e) => (
-                    <div key={e.id} className="flex items-center gap-1">
+            {grid.map((iso) => {
+              const inMonth = fromISODate(iso).getMonth() === cursor.getMonth()
+              const dayTasks = tasksByDate.get(iso) ?? []
+              const dayEvents = eventsByDate.get(iso) ?? []
+              const openCount = dayTasks.filter((t) => !t.completed).length
+              const isToday = iso === today
+              const isSelected = iso === selected
+
+              return (
+                <button
+                  key={iso}
+                  onClick={() => setSelected(iso)}
+                  className={`min-h-[4.5rem] rounded-lg border p-1.5 text-left transition-colors ${
+                    isSelected
+                      ? 'border-transparent bg-surface-3'
+                      : 'border-line hover:bg-surface-2'
+                  } ${inMonth ? '' : 'opacity-40'}`}
+                  style={
+                    isSelected ? { boxShadow: `inset 0 0 0 2px var(--accent)` } : undefined
+                  }
+                  aria-label={`${iso}, ${openCount} tasks, ${dayEvents.length} events`}
+                  aria-pressed={isSelected}
+                >
+                  <span
+                    className={`tnum inline-grid h-5 w-5 place-items-center rounded-full text-[11px] font-medium ${
+                      isToday ? 'text-white' : 'text-ink-secondary'
+                    }`}
+                    style={isToday ? { background: 'var(--accent)' } : undefined}
+                  >
+                    {fromISODate(iso).getDate()}
+                  </span>
+
+                  <div className="mt-1 space-y-0.5">
+                    {dayEvents.slice(0, 2).map((e) => (
+                      <div key={e.id} className="flex items-center gap-1">
+                        <span
+                          aria-hidden
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{
+                            background: slotColor(palette, e.color_slot),
+                          }}
+                        />
+                        <span className="truncate text-[10px] text-ink-secondary">
+                          {e.title}
+                        </span>
+                      </div>
+                    ))}
+                    {openCount > 0 && (
+                      <p className="text-[10px] text-ink-muted">
+                        {openCount} task{openCount === 1 ? '' : 's'}
+                      </p>
+                    )}
+                    {dayEvents.length > 2 && (
+                      <p className="text-[10px] text-ink-muted">
+                        +{dayEvents.length - 2} more
+                      </p>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
+        <Card
+          title={relativeDay(selected)}
+          subtitle={fromISODate(selected).toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })}
+        >
+          <div className="space-y-4">
+            <div>
+              <p className="label">Events</p>
+              {selectedEvents.length === 0 ? (
+                <p className="text-xs text-ink-muted">Nothing scheduled.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {selectedEvents.map((e) => (
+                    <li key={e.id} className="group flex items-start gap-2">
                       <span
                         aria-hidden
-                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                         style={{ background: slotColor(palette, e.color_slot) }}
                       />
-                      <span className="truncate text-[10px] text-ink-secondary">{e.title}</span>
-                    </div>
-                  ))}
-                  {openCount > 0 && (
-                    <p className="text-[10px] text-ink-muted">
-                      {openCount} task{openCount === 1 ? '' : 's'}
-                    </p>
-                  )}
-                  {dayEvents.length > 2 && (
-                    <p className="text-[10px] text-ink-muted">+{dayEvents.length - 2} more</p>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
-
-      <Card
-        title={relativeDay(selected)}
-        subtitle={fromISODate(selected).toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-        })}
-      >
-        <div className="space-y-4">
-          <div>
-            <p className="label">Events</p>
-            {selectedEvents.length === 0 ? (
-              <p className="text-xs text-ink-muted">Nothing scheduled.</p>
-            ) : (
-              <ul className="space-y-2">
-                {selectedEvents.map((e) => (
-                  <li key={e.id} className="group flex items-start gap-2">
-                    <span
-                      aria-hidden
-                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: slotColor(palette, e.color_slot) }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-ink-primary">{e.title}</p>
-                      <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-ink-secondary">
-                        <span className="flex items-center gap-1">
-                          <Clock size={10} />
-                          {new Date(e.start_at).toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                        {e.location && (
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-ink-primary">{e.title}</p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-ink-secondary">
                           <span className="flex items-center gap-1">
-                            <MapPin size={10} />
-                            {e.location}
+                            <Clock size={10} />
+                            {new Date(e.start_at).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
                           </span>
-                        )}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => void removeRow('events', e, events.remove, 'Event')}
-                      className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                      aria-label={`Delete ${e.title}`}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                          {e.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin size={10} />
+                              {e.location}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      {!e.readOnly && (
+                        <button
+                          onClick={() =>
+                            void removeRow(
+                              'events',
+                              e as CalendarEvent,
+                              events.remove,
+                              'Event',
+                            )
+                          }
+                          className="btn btn-ghost !p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          aria-label={`Delete ${e.title}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-          <div className="border-t border-line pt-3">
-            <p className="label">Tasks</p>
-            {selectedTasks.length === 0 ? (
-              <p className="text-xs text-ink-muted">No tasks due.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {selectedTasks.map((t) => (
-                  <li key={t.id} className="flex items-center gap-2 text-sm">
-                    <span
-                      aria-hidden
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: slotColor(palette, PRIORITY_SLOT[t.priority]) }}
-                    />
-                    <span className={t.completed ? 'text-ink-muted line-through' : 'text-ink-primary'}>
-                      {t.title}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="border-t border-line pt-3">
+              <p className="label">Tasks</p>
+              {selectedTasks.length === 0 ? (
+                <p className="text-xs text-ink-muted">No tasks due.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {selectedTasks.map((t) => (
+                    <li key={t.id} className="flex items-center gap-2 text-sm">
+                      <span
+                        aria-hidden
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{
+                          background: slotColor(palette, PRIORITY_SLOT[t.priority]),
+                        }}
+                      />
+                      <span
+                        className={
+                          t.completed ? 'text-ink-muted line-through' : 'text-ink-primary'
+                        }
+                      >
+                        {t.title}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }
@@ -712,7 +821,11 @@ function NewItemModal({
             </Field>
           </div>
           <Field label="List">
-            <input className="input" value={list} onChange={(e) => setList(e.target.value)} />
+            <input
+              className="input"
+              value={list}
+              onChange={(e) => setList(e.target.value)}
+            />
           </Field>
           <Field label="Notes">
             <textarea

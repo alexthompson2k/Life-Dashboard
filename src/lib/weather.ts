@@ -191,7 +191,11 @@ export function dayAdvice(day: DailyPoint, current: CurrentWeather): string {
   if (day.wind_max_kmh >= 35) return 'Windy — not a great day for a bike commute.'
   if (day.max_c >= 30) return 'Hot one. Keep water on you.'
   if (day.min_c <= 2) return 'Near freezing tonight — layer up.'
-  if (current.apparent_c >= 12 && current.apparent_c <= 24 && day.precipitation_probability < 25) {
+  if (
+    current.apparent_c >= 12 &&
+    current.apparent_c <= 24 &&
+    day.precipitation_probability < 25
+  ) {
     return 'Good conditions for a walk or an outdoor workout.'
   }
   return 'Nothing unusual in the forecast.'

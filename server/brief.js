@@ -48,9 +48,7 @@ function formatTime(iso) {
 function daysBetween(fromISO, toISO) {
   const [ay, am, ad] = fromISO.split('-').map(Number)
   const [by, bm, bd] = toISO.split('-').map(Number)
-  return Math.round(
-    (Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000,
-  )
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
 }
 
 /**
@@ -146,9 +144,7 @@ export function composeBrief(input) {
   }
 
   const empty = lines.length === 0
-  const body = empty
-    ? 'Nothing needs you today. Enjoy it.'
-    : lines.slice(0, 4).join(' · ')
+  const body = empty ? 'Nothing needs you today. Enjoy it.' : lines.slice(0, 4).join(' · ')
 
   return { title: greeting(now, displayName), body, lines, empty }
 }

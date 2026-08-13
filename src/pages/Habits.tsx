@@ -44,7 +44,10 @@ export default function Habits() {
   }
 
   const doneToday = active.filter((h) => loggedToday.has(h.id)).length
-  const bestStreak = active.reduce((max, h) => Math.max(max, habitStreak(logs.rows, h.id)), 0)
+  const bestStreak = active.reduce(
+    (max, h) => Math.max(max, habitStreak(logs.rows, h.id)),
+    0,
+  )
   const avgCompletion = active.length
     ? active.reduce((sum, h) => sum + habitCompletion(logs.rows, h.id), 0) / active.length
     : 0
@@ -175,9 +178,15 @@ function HabitCard({
               background: doneToday ? color : 'transparent',
             }}
             aria-pressed={doneToday}
-            aria-label={doneToday ? `Undo ${habit.name} for today` : `Log ${habit.name} for today`}
+            aria-label={
+              doneToday ? `Undo ${habit.name} for today` : `Log ${habit.name} for today`
+            }
           >
-            <Flame size={16} className={doneToday ? 'text-white' : ''} style={doneToday ? {} : { color }} />
+            <Flame
+              size={16}
+              className={doneToday ? 'text-white' : ''}
+              style={doneToday ? {} : { color }}
+            />
           </button>
           <div>
             <p className="text-sm font-medium text-ink-primary">{habit.name}</p>
@@ -207,7 +216,11 @@ function HabitCard({
 
       {/* Sequential single-hue heatmap: opacity carries magnitude (done / not). */}
       <div className="mt-4 overflow-x-auto">
-        <div className="flex gap-[3px]" role="img" aria-label={`${habit.name} activity over the last 17 weeks`}>
+        <div
+          className="flex gap-[3px]"
+          role="img"
+          aria-label={`${habit.name} activity over the last 17 weeks`}
+        >
           {weeks.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-[3px]">
               {week.map((date) => {
