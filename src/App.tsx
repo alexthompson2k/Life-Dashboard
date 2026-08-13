@@ -12,6 +12,7 @@ import Tasks from './pages/Tasks'
 import Fitness from './pages/Fitness'
 import Habits from './pages/Habits'
 import Goals from './pages/Goals'
+import Review from './pages/Review'
 import Weather from './pages/Weather'
 import News from './pages/News'
 import Journal from './pages/Journal'
@@ -34,6 +35,7 @@ export default function App() {
                 <Route path="fitness" element={<Fitness />} />
                 <Route path="habits" element={<Habits />} />
                 <Route path="goals" element={<Goals />} />
+                <Route path="review" element={<Review />} />
                 <Route path="weather" element={<Weather />} />
                 <Route path="news" element={<News />} />
                 <Route path="journal" element={<Journal />} />

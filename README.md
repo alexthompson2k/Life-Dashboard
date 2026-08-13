@@ -98,6 +98,25 @@ have.
 
 **Journal** — a one-minute daily entry with mood and energy, plus a trend chart.
 
+**Weekly review** — what changed, across everything, week over week: tasks,
+training, spending, habits and mood against the week before, plus three things
+only a combined dashboard can work out:
+
+- _Recurring charges_ — detected from repeating amounts at the same merchant,
+  with a monthly total, price rises, and charges that have stopped appearing.
+- _Running hot_ — categories spending unusually, compared against the same
+  stretch of previous months rather than a scaled average, so fixed bills that
+  land on the 1st are not flagged every month.
+- _Patterns_ — correlations between things tracked separately (training and
+  mood, habits and mood, spending and mood). Shown only with 20+ days of
+  overlapping data and a correlation of 0.3 or stronger, and always labelled as
+  association rather than cause.
+
+**Goal projections** — goals record each update, so the Goals page can say when
+you will actually get there. It declines to answer when the trend is flat,
+pointing the wrong way, or too noisy to mean anything, rather than printing a
+confident date from three scattered points.
+
 Throughout: light/dark themes, a ⌘K command palette (type `add call the
 dentist` to capture a task from anywhere), keyboard-accessible dialogs, and a
 table view on every chart.

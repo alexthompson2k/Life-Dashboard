@@ -123,6 +123,7 @@ const ALL_TABLES: TableName[] = [
   'habit_logs',
   'journal',
   'goals',
+  'goal_progress',
 ]
 
 export interface BackupFile {

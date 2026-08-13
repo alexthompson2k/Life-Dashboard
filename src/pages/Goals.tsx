@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus, Target, Trash2 } from 'lucide-react'
 import { useTable } from '../lib/store'
 import { useSettings } from '../lib/settings'
@@ -15,6 +15,7 @@ import {
 } from '../components/ui'
 import { currency, fromISODate, number as fmtNumber, toISODate } from '../lib/format'
 import { useUndoableDelete } from '../lib/undo'
+import { projectGoal, type Projection } from '../lib/insights'
 import type { Goal } from '../lib/types'
 
 /**
@@ -36,6 +37,7 @@ function daysLeft(goal: Goal) {
 
 export default function Goals() {
   const goals = useTable('goals')
+  const progress = useTable('goal_progress')
   const { settings } = useSettings()
   const toast = useToast()
   const { removeRow } = useUndoableDelete()
@@ -57,6 +59,21 @@ export default function Goals() {
     ;(acc[g.category] ??= []).push(g)
     return acc
   }, {})
+
+  /*
+   * Projections come from the recorded history, not from the single current
+   * value — a goal needs a trend before a completion date means anything.
+   */
+  const projections = useMemo(() => {
+    const map = new Map<string, Projection>()
+    for (const goal of goals.rows) {
+      const history = progress.rows
+        .filter((p) => p.goal_id === goal.id)
+        .map((p) => ({ date: p.date, value: p.value }))
+      map.set(goal.id, projectGoal(goal, history))
+    }
+    return map
+  }, [goals.rows, progress.rows])
 
   return (
     <div className="space-y-5">
@@ -147,15 +164,18 @@ export default function Goals() {
 
                     <ProgressBar value={pct} state={done ? 'good' : 'accent'} />
 
-                    <p className="mt-1 text-[11px] text-ink-muted">
-                      {done
-                        ? 'Done — nice work.'
-                        : left === null
-                          ? 'No deadline set'
-                          : left > 0
-                            ? `${left} days left`
-                            : `${Math.abs(left)} days past the deadline`}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
+                      <span className="text-ink-muted">
+                        {done
+                          ? 'Done — nice work.'
+                          : left === null
+                            ? 'No deadline set'
+                            : left > 0
+                              ? `${left} days left`
+                              : `${Math.abs(left)} days past the deadline`}
+                      </span>
+                      {!done && <ProjectionNote projection={projections.get(goal.id)} />}
+                    </div>
                   </div>
                 )
               })}
@@ -178,10 +198,60 @@ export default function Goals() {
         onClose={() => setEditing(null)}
         onSave={async (id, value) => {
           await goals.update(id, { current_value: value })
+          // Record the point too, so the projection has a trend to fit.
+          const today = toISODate()
+          const existing = progress.rows.find((p) => p.goal_id === id && p.date === today)
+          if (existing) await progress.update(existing.id, { value })
+          else await progress.insert({ goal_id: id, date: today, value })
           toast.push('Progress updated')
         }}
       />
     </div>
+  )
+}
+
+/** Only says something when the projection is actually meaningful. */
+function ProjectionNote({ projection }: { projection: Projection | undefined }) {
+  if (!projection) return null
+
+  if (projection.status === 'insufficient-data') {
+    return <span className="text-ink-muted">Not enough history to project yet</span>
+  }
+
+  if (projection.status === 'wrong-direction') {
+    return (
+      <span style={{ color: 'var(--status-warning)' }}>Moving away from this target</span>
+    )
+  }
+
+  if (projection.status === 'stalled') {
+    return <span className="text-ink-muted">No movement to project from</span>
+  }
+
+  if (projection.status === 'slow' && !projection.etaDate) {
+    return <span className="text-ink-muted">More than ten years away at this rate</span>
+  }
+
+  if (!projection.etaDate) return null
+
+  const eta = fromISODate(projection.etaDate).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  return (
+    <span
+      style={{
+        color:
+          projection.status === 'on-track' ? 'var(--status-good)' : 'var(--status-warning)',
+      }}
+      // A low r² means the line is a poor fit, so the date is a guess.
+      title={`Fit quality r² = ${projection.confidence.toFixed(2)}`}
+    >
+      {projection.status === 'on-track' ? 'On track for' : 'Projected'} {eta}
+      {projection.confidence < 0.5 && ' (noisy trend)'}
+    </span>
   )
 }
 

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   BookOpen,
   CalendarCheck,
+  ClipboardList,
   CloudSun,
   Dumbbell,
   LayoutDashboard,
@@ -32,6 +33,7 @@ export const NAV = [
   { to: '/fitness', label: 'Fitness', icon: Dumbbell },
   { to: '/habits', label: 'Habits', icon: Repeat },
   { to: '/goals', label: 'Goals', icon: Target },
+  { to: '/review', label: 'Weekly review', icon: ClipboardList },
   { to: '/weather', label: 'Weather', icon: CloudSun },
   { to: '/news', label: 'News', icon: Newspaper },
   { to: '/journal', label: 'Journal', icon: BookOpen },

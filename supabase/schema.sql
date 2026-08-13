@@ -167,6 +167,18 @@ create table if not exists public.goals (
   due_date date
 );
 
+-- Each recorded update to a goal, so progress can be projected forward.
+create table if not exists public.goal_progress (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  goal_id uuid not null references public.goals on delete cascade,
+  date date not null,
+  value numeric(14,2) not null,
+  unique (goal_id, date)
+);
+
+create index if not exists goal_progress_goal_idx on public.goal_progress (goal_id, date);
+
 create table if not exists public.settings (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique default auth.uid() references auth.users on delete cascade,
@@ -252,7 +264,8 @@ declare
   t text;
   user_tables text[] := array[
     'accounts','transactions','budgets','tasks','events','weights',
-    'workouts','workout_sets','habits','habit_logs','journal','goals','settings'
+    'workouts','workout_sets','habits','habit_logs','journal','goals',
+    'goal_progress','settings'
   ];
 begin
   foreach t in array user_tables loop

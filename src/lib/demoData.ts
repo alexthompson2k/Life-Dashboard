@@ -572,6 +572,42 @@ const settings: Tables['settings'][] = [
   },
 ]
 
+/**
+ * Progress history behind each goal. Without this, projections have nothing to
+ * fit a line to and every goal reads "not enough history yet".
+ */
+function buildGoalProgress(): Tables['goal_progress'][] {
+  const rows: Tables['goal_progress'][] = []
+  let n = 0
+
+  const track = (
+    goalId: string,
+    from: number,
+    to: number,
+    weeks: number,
+    jitter: number,
+  ) => {
+    for (let w = weeks; w >= 0; w--) {
+      const progress = (weeks - w) / weeks
+      const value = from + (to - from) * progress + between(-jitter, jitter)
+      rows.push({
+        id: id('gp', n++),
+        goal_id: goalId,
+        date: isoDaysAgo(w * 7),
+        value: Number(value.toFixed(2)),
+      })
+    }
+  }
+
+  track('goal_1', 12000, 21500, 26, 250)
+  track('goal_2', 84.5, 80.7, 26, 0.25)
+  track('goal_3', 100, 127.5, 26, 1.5)
+  track('goal_4', 0, 14, 26, 0.4)
+  track('goal_5', 24000, 12400, 26, 150)
+
+  return rows
+}
+
 /* ------------------------------------------------------------------ */
 
 export function buildDemoData(): { [K in keyof Tables]: Tables[K][] } {
@@ -590,6 +626,7 @@ export function buildDemoData(): { [K in keyof Tables]: Tables[K][] } {
     habit_logs: logs,
     journal: buildJournal(),
     goals,
+    goal_progress: buildGoalProgress(),
     settings,
   }
 }

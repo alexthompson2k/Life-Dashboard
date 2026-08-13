@@ -132,6 +132,14 @@ export interface Goal {
   due_date: string | null
 }
 
+/** One recorded update to a goal, used to project a completion date. */
+export interface GoalProgress {
+  id: ID
+  goal_id: ID
+  date: string
+  value: number
+}
+
 export type UnitSystem = 'metric' | 'imperial'
 
 export interface Settings {
@@ -166,6 +174,7 @@ export interface Tables {
   habit_logs: HabitLog
   journal: JournalEntry
   goals: Goal
+  goal_progress: GoalProgress
   settings: Settings
 }
 
